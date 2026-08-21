@@ -3,6 +3,7 @@ package org.example.pft.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.Set;
 
 
@@ -17,7 +18,8 @@ public class User {
     private String fullName;
     private String email;
     private String password;
-    private String avatarURL;
+    private String avatar;
+    private LocalDateTime createdAt = LocalDateTime.now();
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(

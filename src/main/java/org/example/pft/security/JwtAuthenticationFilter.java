@@ -29,11 +29,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.userDetailsService = userDetailsService;
     }
 
-//    @Override
-//    protected boolean shouldNotFilter(HttpServletRequest request) {
-//        return pathMatcher.match(AUTH_PATH_PATTERN, request.getServletPath());
-//    }
-
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -61,8 +56,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String username = jwtService.extractUsername(token);
-        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+        String email = jwtService.extractEmail(token);
+        UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
         UsernamePasswordAuthenticationToken auth =
                 new UsernamePasswordAuthenticationToken(
