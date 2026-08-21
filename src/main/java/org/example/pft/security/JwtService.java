@@ -6,9 +6,8 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import org.example.api.entity.Authority;
-import org.example.api.entity.Role;
-import org.example.api.entity.User;
+import org.example.pft.entity.Role;
+import org.example.pft.entity.User;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -44,12 +43,11 @@ public class JwtService {
 
 
         Map<String, Object> claims = new HashMap<>();
-        claims.put("roles",roles);
-        claims.put("authorities",authorities);
+        claims.put("roles", roles);
 
         return Jwts.builder()
                 .setIssuer(issuer)
-                .setSubject(user.getUsername())
+                .setSubject(user.getEmail())
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(exp))
                 .addClaims(claims)
@@ -74,7 +72,7 @@ public class JwtService {
                 .getPayload();
     }
 
-    public String extractUsername(String token){
+    public String extractEmail(String token){
         return parseClaim(token).getSubject();
     }
 
