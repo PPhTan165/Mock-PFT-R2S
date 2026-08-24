@@ -19,6 +19,8 @@ public class User {
     private String email;
     private String password;
     private String avatar;
+    private int failedLoginAttempts = 0; //  số lần login sai
+    private LocalDateTime lockedUntil; // Thời gian unblock
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @ManyToMany(fetch = FetchType.EAGER)
