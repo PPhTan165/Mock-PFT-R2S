@@ -20,8 +20,8 @@ import java.util.Set;
 @Service
 
 public class AuthServiceImpl implements AuthService {
-    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
-    private static final int LOGIN_LOCK_MINUTES = 30;
+    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5; // giới hạn số lần thất bại
+    private static final int LOGIN_LOCK_MINUTES = 30; // Thời gian bị lock
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -57,46 +57,6 @@ public class AuthServiceImpl implements AuthService {
 
     }
 
-    private void checkLoginLock(User user) {
-        if (user.getLockedUntil() == null) {
-            return;
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        if (now.isBefore(user.getLockedUntil())) {
-            long minutesLeft = Duration.between(now, user.getLockedUntil()).toMinutes() + 1;
-            throw new BusinessValidationException(
-                    "Account is locked. Try again after " + minutesLeft + " minutes"
-            );
-        }
-
-        resetLoginFailure(user);
-    }
-
-    private BusinessValidationException handleFailedLogin(User user) {
-        int failedLoginAttempts = user.getFailedLoginAttempts() + 1;
-        user.setFailedLoginAttempts(failedLoginAttempts);
-        System.out.println(failedLoginAttempts);
-        if (failedLoginAttempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
-            user.setLockedUntil(LocalDateTime.now().plusMinutes(LOGIN_LOCK_MINUTES));
-            userRepository.save(user);
-            return new BusinessValidationException(
-                    "Account is locked. Try again after " + LOGIN_LOCK_MINUTES + " minutes"
-            );
-        }
-
-        userRepository.save(user);
-        return new BusinessValidationException("Invalid email or password");
-    }
-
-    private void resetLoginFailure(User user) {
-        if (user.getFailedLoginAttempts() > 0 || user.getLockedUntil() != null) {
-            user.setFailedLoginAttempts(0);
-            user.setLockedUntil(null);
-            userRepository.save(user);
-        }
-    }
-
     @Override
     public RegisterResponse register(RegisterRequest request){
 
@@ -124,4 +84,48 @@ public class AuthServiceImpl implements AuthService {
 
         return new RegisterResponse(true,"Registration successful",data);
     }
+
+    //Kiem tra user con bi lock khong
+    private void checkLoginLock(User user) {
+        if (user.getLockedUntil() == null) {
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (now.isBefore(user.getLockedUntil())) {
+            long minutesLeft = Duration.between(now, user.getLockedUntil()).toMinutes() + 1;
+            throw new BusinessValidationException(
+                    "Account is locked. Try again after " + minutesLeft + " minutes"
+            );
+        }
+
+        resetLoginFailure(user);
+    }
+
+    //Quan ly so lan bi sai login.
+    private BusinessValidationException handleFailedLogin(User user) {
+        int failedLoginAttempts = user.getFailedLoginAttempts() + 1;
+        user.setFailedLoginAttempts(failedLoginAttempts);
+
+        if (failedLoginAttempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
+            user.setLockedUntil(LocalDateTime.now().plusMinutes(LOGIN_LOCK_MINUTES));
+            userRepository.save(user);
+            return new BusinessValidationException(
+                    "Account is locked. Try again after " + LOGIN_LOCK_MINUTES + " minutes"
+            );
+        }
+
+        userRepository.save(user);
+        return new BusinessValidationException("Invalid email or password");
+    }
+
+    //Mo khoa tai khoan
+    private void resetLoginFailure(User user) {
+        if (user.getFailedLoginAttempts() > 0 || user.getLockedUntil() != null) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            userRepository.save(user);
+        }
+    }
+
 }
