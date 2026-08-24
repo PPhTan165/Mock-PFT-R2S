@@ -4,16 +4,15 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Getter
 @AllArgsConstructor
 public class ApiError {
-    private Instant timestamp;
-    private int status;
-    private String error;
+    private boolean success;
     private String message;
-    private String path;
-    private Map<String,String> fields;
+    private List<ErrorData> errors;
 
 }
