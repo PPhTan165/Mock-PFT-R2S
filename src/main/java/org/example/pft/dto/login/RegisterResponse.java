@@ -5,8 +5,8 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public class LoginResponse {
+public class RegisterResponse {
     private boolean success = false;
     private String message;
-    private LoginData data;
+    private RegisterData data;
 }

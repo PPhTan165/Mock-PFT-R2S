@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.example.pft.dto.login.LoginRequest;
 import org.example.pft.dto.login.LoginResponse;
+import org.example.pft.dto.login.RegisterRequest;
+import org.example.pft.dto.login.RegisterResponse;
 import org.example.pft.service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,5 +23,10 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody @Valid LoginRequest request){
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/register")
+    public RegisterResponse register(@RequestBody @Valid RegisterRequest request){
+        return authService.register(request);
     }
 }

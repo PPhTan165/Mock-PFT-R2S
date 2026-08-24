@@ -8,26 +8,24 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.*;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    private ResponseEntity<ApiError> build(HttpStatus status, String message, String path, Map<String, String> fields) {
+    private ResponseEntity<ApiError> build(HttpStatus status,boolean success, String message, List<ErrorData> errors) {
+
+
         ApiError body = new ApiError(
-                Instant.now(),
-                status.value(),
-                status.getReasonPhrase(),
-                message,
-                path,
-                fields
+            false,
+                "Validation failed",
+                errors
         );
         return ResponseEntity.status(status).body(body);
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex, HttpServletRequest req) {
-        return build(HttpStatus.NOT_FOUND, ex.getMessage(), req.getRequestURI(), null);
+    public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND,false, ex.getMessage(), null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -35,15 +33,15 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException ex,
             HttpServletRequest req
     ) {
-        Map<String, String> errors = new LinkedHashMap<>();
+        List<ErrorData> errors = new ArrayList<>();
+
         ex.getBindingResult().getFieldErrors().forEach(error ->
-                errors.put(error.getField(), error.getDefaultMessage())
-        );
+                errors.add(new ErrorData(error.getField(),error.getDefaultMessage())));
 
         return build(
-                HttpStatus.BAD_REQUEST,
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                false,
                 "Validation failed",
-                req.getRequestURI(),
                 errors
         );
     }
@@ -56,11 +54,8 @@ public class GlobalExceptionHandler {
         HttpStatus status = ex.getStatus();
 
         ApiError error = new ApiError(
-                Instant.now(),
-                status.value(),
-                status.getReasonPhrase(),
+                false,
                 ex.getMessage(),
-                req.getRequestURI(),
                 null
         );
 

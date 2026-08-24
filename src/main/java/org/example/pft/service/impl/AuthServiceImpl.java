@@ -1,7 +1,7 @@
 package org.example.pft.service.impl;
 
-import org.example.pft.dto.login.LoginRequest;
-import org.example.pft.dto.login.LoginResponse;
+import org.example.pft.dto.login.*;
+import org.example.pft.entity.Role;
 import org.example.pft.entity.User;
 import org.example.pft.exception.BusinessConflictException;
 import org.example.pft.exception.BusinessValidationException;
@@ -12,6 +12,9 @@ import org.example.pft.security.JwtService;
 import org.example.pft.service.AuthService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.Set;
 
 @Service
 
@@ -38,9 +41,39 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String accessToken = jwtService.generateToken(user);
-        long exp = jwtService.getExpirationSeconds(accessToken);
+        LocalDateTime exp = jwtService.getExpirationDateTime(accessToken);
 
-        return new LoginResponse(accessToken,exp);
+        LoginData data = new LoginData(accessToken,exp);
 
+        return new LoginResponse(true,"Login successful",data);
+
+    }
+
+    @Override
+    public RegisterResponse register(RegisterRequest request){
+
+        if(userRepository.existsByEmail(request.getEmail())){
+            throw new BusinessConflictException("Email is already registered");
+        }
+
+        Role userRole = roleRepository.findByName("USER")
+                .orElseThrow(()-> new ResourceNotFoundException("Default role USER not found"));
+
+        User user = new User();
+        user.setEmail(request.getEmail());
+        user.setFullName(request.getFullName());
+
+        user.setPassword(encoder.encode(request.getPassword()));
+        user.setRoles(Set.of(userRole));
+
+       User savedUser = userRepository.save(user);
+
+        RegisterData data = new RegisterData(
+                savedUser.getId(),
+                savedUser.getFullName(),
+                savedUser.getEmail()
+        );
+
+        return new RegisterResponse(true,"Registration successful",data);
     }
 }
