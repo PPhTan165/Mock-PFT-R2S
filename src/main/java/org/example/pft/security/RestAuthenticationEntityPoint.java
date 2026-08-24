@@ -26,7 +26,7 @@ public class RestAuthenticationEntityPoint implements AuthenticationEntryPoint {
                 Instant.now().toString(),
                 HttpStatus.UNAUTHORIZED.value(),
                 HttpStatus.UNAUTHORIZED.getReasonPhrase(),
-                "JWT token is missing or invalid",
+                "Unauthorized – Please login to access this resource",
                 request.getRequestURI()
         );
 
