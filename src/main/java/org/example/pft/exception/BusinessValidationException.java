@@ -1,7 +1,14 @@
 package org.example.pft.exception;
 
-public class BusinessValidationException extends RuntimeException {
+import org.springframework.http.HttpStatus;
+
+public class BusinessValidationException extends BusinessException {
     public BusinessValidationException(String message) {
         super(message);
+    }
+
+    @Override
+    public HttpStatus getStatus() {
+        return HttpStatus.UNPROCESSABLE_ENTITY;
     }
 }
