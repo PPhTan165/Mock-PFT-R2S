@@ -6,6 +6,7 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class LoginResponse {
-    private String accessToken;
-    private long expire;
+    private boolean success = false;
+    private String message;
+    private LoginData data;
 }
