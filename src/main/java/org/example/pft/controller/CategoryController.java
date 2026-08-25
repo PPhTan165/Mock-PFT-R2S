@@ -1,16 +1,17 @@
 package org.example.pft.controller;
 
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.example.pft.dto.category.CategoryByTypeData;
 import org.example.pft.dto.category.CategoryData;
+import org.example.pft.dto.category.CategoryRequest;
 import org.example.pft.dto.category.CategoryResponse;
+import org.example.pft.dto.category.CreateCategoryData;
 import org.example.pft.enums.CategoryType;
 import org.example.pft.service.CategoryService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
@@ -29,5 +30,10 @@ public class CategoryController {
     @GetMapping(params = "type")
     public ResponseEntity<CategoryResponse<List<CategoryByTypeData>>> getByType(@RequestParam String type){
         return ResponseEntity.ok().body(categoryService.getByType(type));
+    }
+
+    @PostMapping
+    public ResponseEntity<CategoryResponse<CreateCategoryData>> create(@RequestBody @Valid CategoryRequest request){
+        return ResponseEntity.status(HttpStatus.CREATED).body(categoryService.create(request));
     }
 }

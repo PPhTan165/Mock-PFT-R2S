@@ -5,10 +5,10 @@ import lombok.Data;
 
 @Data
 public class CategoryRequest {
-    @NotBlank
+    @NotBlank(message = "Category name is required")
     private String name;
 
-    @NotBlank
+    @NotBlank(message = "Category type must be INCOME or EXPENSE")
     private String type;
 
     private String emoji;
