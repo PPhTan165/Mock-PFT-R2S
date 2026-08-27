@@ -2,10 +2,10 @@ package org.example.pft.controller;
 
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
-import org.example.pft.dto.login.LoginRequest;
-import org.example.pft.dto.login.LoginResponse;
-import org.example.pft.dto.login.RegisterRequest;
-import org.example.pft.dto.login.RegisterResponse;
+import org.example.pft.dto.auth.LoginRequest;
+import org.example.pft.dto.auth.LoginResponse;
+import org.example.pft.dto.auth.RegisterRequest;
+import org.example.pft.dto.auth.RegisterResponse;
 import org.example.pft.service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

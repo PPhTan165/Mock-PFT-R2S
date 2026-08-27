@@ -2,12 +2,12 @@ package org.example.pft.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.Instant;
 import java.util.*;
 
 @RestControllerAdvice
@@ -16,8 +16,8 @@ public class GlobalExceptionHandler {
 
 
         ApiError body = new ApiError(
-            false,
-                "Validation failed",
+                success,
+                message,
                 errors
         );
         return ResponseEntity.status(status).body(body);
