@@ -6,7 +6,7 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class RegisterData {
-    private Integer userId;
+    private Long userId;
     private String fullName;
     private String email;
 }
