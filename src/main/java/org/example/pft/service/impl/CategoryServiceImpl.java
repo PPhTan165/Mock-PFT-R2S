@@ -70,7 +70,6 @@ public class CategoryServiceImpl implements CategoryService {
         return response;
     }
 
-
     @Override
     public CategoryResponse<Map<CategoryType, List<CategoryData>>> getAll() {
         Map<CategoryType, List<CategoryData>> data = new EnumMap<>(CategoryType.class);
