@@ -1,4 +1,4 @@
-package org.example.pft.dto.login;
+package org.example.pft.dto.auth;
 import jakarta.validation.constraints.*;
 
 import lombok.Data;

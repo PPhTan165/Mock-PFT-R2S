@@ -1,6 +1,6 @@
 package org.example.pft.service.impl;
 
-import org.example.pft.dto.login.*;
+import org.example.pft.dto.auth.*;
 import org.example.pft.entity.Role;
 import org.example.pft.entity.User;
 import org.example.pft.exception.BusinessConflictException;
