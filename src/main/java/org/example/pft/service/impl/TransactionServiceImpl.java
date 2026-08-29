@@ -31,7 +31,7 @@ public class TransactionServiceImpl implements TransactionService {
                 new TransactionCategoryData(
                         category.getId(),
                         categoryIcon.getCategoryName(),
-                        category.getType(),
+                        category.getType().name(),
                         categoryIcon.getEmoji(),
                         categoryIcon.getIconUrl()
                 );
