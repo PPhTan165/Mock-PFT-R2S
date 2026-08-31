@@ -2,19 +2,17 @@ package org.example.pft.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.validation.BindException;
 
 import java.util.*;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private ResponseEntity<ApiError> build(HttpStatus status,boolean success, String message, List<ErrorData> errors) {
-
-
         ApiError body = new ApiError(
                 success,
                 message,
@@ -60,6 +58,22 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(status).body(error);
+    }
+
+    @ExceptionHandler(BindException.class)
+    public ResponseEntity<ApiError> handleBindException(BindException ex){
+        List<ErrorData> errors = new ArrayList<>();
+
+        ex.getBindingResult().getFieldErrors().forEach(error->
+                errors.add(new ErrorData(error.getField(),"Invalid value"))
+        );
+
+        return build(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                false,
+                "Validation failed",
+                errors
+        );
     }
 
 
