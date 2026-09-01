@@ -14,7 +14,6 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction,Long> {
@@ -37,7 +36,6 @@ public interface TransactionRepository extends JpaRepository<Transaction,Long> {
             @Param("userId") Long userId,
             @Param("month") Integer month,
             @Param("year") Integer year
-
     );
 
     @Query("""
@@ -110,4 +108,5 @@ public interface TransactionRepository extends JpaRepository<Transaction,Long> {
             @Param("type") CategoryType type,
             Pageable pageable
             );
+
 }
