@@ -1,10 +1,7 @@
 package org.example.pft.service.impl;
 
 import lombok.AllArgsConstructor;
-import org.example.pft.dto.transaction.CreateTransactionData;
-import org.example.pft.dto.transaction.TransactionCategoryData;
-import org.example.pft.dto.transaction.TransactionRequest;
-import org.example.pft.dto.transaction.TransactionResponse;
+import org.example.pft.dto.transaction.*;
 import org.example.pft.entity.Category;
 import org.example.pft.entity.CategoryIcon;
 import org.example.pft.entity.Transaction;
@@ -14,7 +11,11 @@ import org.example.pft.helper.CurrentUserHelper;
 import org.example.pft.repository.CategoryRepository;
 import org.example.pft.repository.TransactionRepository;
 import org.example.pft.service.TransactionService;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @AllArgsConstructor
 @Service
@@ -54,7 +55,6 @@ public class TransactionServiceImpl implements TransactionService {
         return response;
     }
 
-
     @Override
     public TransactionResponse<CreateTransactionData> create(TransactionRequest request){
         User user = currentUserHelper.getCurrentUser();
@@ -73,5 +73,30 @@ public class TransactionServiceImpl implements TransactionService {
         CreateTransactionData resData = mapToCreateTransaction(saved);
 
         return successResponse(resData,"Transaction added successfully");
+    }
+
+    @Override
+    public TransactionResponse<List<HistoryData>> showHistory(HistoryRequest request){
+        User user = currentUserHelper.getCurrentUser();
+        Long userId = user.getId();
+
+        Long categoryId = request.getCategoryId();
+        if (categoryId != null) {
+            categoryRepository.findById(categoryId)
+                    .orElseThrow(()-> new ResourceNotFoundException("Category not found"));
+        }
+
+        Pageable pageable = PageRequest.of(request.getPage() - 1, request.getSize());
+
+        List<HistoryData> historyDataList = transactionRepository
+                .showHistory(
+                        userId,
+                        request.getStartDate(),
+                        request.getEndDate(),
+                        categoryId,
+                        request.getType(),
+                        pageable);
+
+        return successResponse(historyDataList,"Transaction history fetched successfully");
     }
 }
