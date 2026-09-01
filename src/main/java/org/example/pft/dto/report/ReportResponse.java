@@ -5,8 +5,8 @@ import lombok.Data;
 
 @Data
 @JsonPropertyOrder({"success","message","data"})
-public class ReportResponse {
+public class ReportResponse<T> {
     private boolean success;
     private String message;
-    private ReportCategoryData data;
+    private T data;
 }
