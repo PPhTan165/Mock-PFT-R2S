@@ -18,7 +18,9 @@ public class ReportController {
     private final ReportService reportService;
 
     @GetMapping("/category")
-    public ResponseEntity<ReportResponse> showReportCategory(@Valid @ModelAttribute ReportRequest request){
-        return ResponseEntity.ok().body(reportService.showReportCategory(request.getMonth(),request.getYear(),request.getType()));
+    public ResponseEntity<ReportResponse> showReportCategory(
+            @Valid @ModelAttribute ReportRequest request){
+        return ResponseEntity.ok().body(reportService
+                .showReportCategory(request.getMonth(),request.getYear(),request.getType()));
     }
 }
