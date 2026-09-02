@@ -1,5 +1,6 @@
 package org.example.pft.service.impl;
 
+import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.example.pft.dto.transaction.*;
 import org.example.pft.entity.Category;
@@ -56,6 +57,7 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
+    @Transactional
     public TransactionResponse<CreateTransactionData> create(TransactionRequest request){
         User user = currentUserHelper.getCurrentUser();
 

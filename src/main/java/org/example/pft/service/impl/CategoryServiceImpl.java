@@ -1,5 +1,6 @@
 package org.example.pft.service.impl;
 
+import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
 import org.example.pft.dto.category.*;
 import org.example.pft.entity.Category;
@@ -107,6 +108,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    @Transactional
     public CategoryResponse<CreateCategoryData> create(CategoryRequest request){
         User currentUser = getCurrentUser();
         CategoryIcon icon;
