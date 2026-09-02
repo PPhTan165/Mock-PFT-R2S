@@ -10,11 +10,13 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface CategoryRepository extends JpaRepository<Category, Long> {
     List<Category> findAllByTypeAndUser(CategoryType type,User user);
     List<Category> findAllByUser(User user);
+    Optional<Category> findByIdAndType(Long id,CategoryType type);
     boolean existsByUserAndCategoryIcon_CategoryName(User user, String categoryName);
 
     @Query("""
