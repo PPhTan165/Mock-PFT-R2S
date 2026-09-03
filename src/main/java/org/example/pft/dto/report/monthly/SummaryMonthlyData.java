@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 
 @Data
 @AllArgsConstructor
-public class SummaryData {
+public class SummaryMonthlyData {
     private String month;
     private BigDecimal income;
     private BigDecimal expense;

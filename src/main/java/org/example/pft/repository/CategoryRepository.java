@@ -20,7 +20,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     boolean existsByUserAndCategoryIcon_CategoryName(User user, String categoryName);
 
     @Query("""
-            select new org.example.pft.dto.report.ReportCategory(
+            select new org.example.pft.dto.report.category.ReportCategory(
                 ci.categoryName,
                 sum(t.amount)
             )
