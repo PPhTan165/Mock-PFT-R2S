@@ -1,4 +1,4 @@
-package org.example.pft.dto.report;
+package org.example.pft.dto.report.monthly;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -9,5 +9,5 @@ import java.util.List;
 @AllArgsConstructor
 public class MonthlyData {
     private List<ChartData> chart;
-    private SummaryData summary;
+    private SummaryMonthlyData summary;
 }

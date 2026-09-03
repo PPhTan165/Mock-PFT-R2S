@@ -2,6 +2,7 @@ package org.example.pft.repository;
 
 import org.example.pft.dto.dashboard.PieChartData;
 import org.example.pft.dto.dashboard.RecentTransData;
+import org.example.pft.dto.report.summary.TopExpenses;
 import org.example.pft.dto.transaction.HistoryData;
 import org.example.pft.entity.Transaction;
 import org.example.pft.enums.CategoryType;
@@ -108,5 +109,29 @@ public interface TransactionRepository extends JpaRepository<Transaction,Long> {
             @Param("type") CategoryType type,
             Pageable pageable
             );
+
+    @Query("""
+        select new org.example.pft.dto.report.summary.TopExpenses(
+                ci.categoryName,
+                ci.emoji,
+                ci.iconUrl,
+                t.amount
+            )
+            from Transaction t
+            join t.category c
+            join c.categoryIcon ci
+            where t.user.id = :userId
+              and month(t.date) = :month
+              and year(t.date) = :year
+              and c.type = :type
+            order by t.amount desc
+            limit 3
+""")
+    List<TopExpenses> showTopExpenses(
+            @Param("userId") Long userId,
+            @Param("month") Integer month,
+            @Param("year") Integer year,
+            @Param("type") CategoryType type
+    );
 
 }

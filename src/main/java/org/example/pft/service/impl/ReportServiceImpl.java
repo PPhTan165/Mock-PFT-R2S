@@ -2,6 +2,11 @@ package org.example.pft.service.impl;
 
 import lombok.AllArgsConstructor;
 import org.example.pft.dto.report.*;
+import org.example.pft.dto.report.category.ReportCategory;
+import org.example.pft.dto.report.category.ReportCategoryData;
+import org.example.pft.dto.report.monthly.*;
+import org.example.pft.dto.report.summary.SummaryData;
+import org.example.pft.dto.report.summary.TopExpenses;
 import org.example.pft.entity.User;
 import org.example.pft.enums.CategoryType;
 import org.example.pft.helper.CurrentUserHelper;
@@ -26,18 +31,23 @@ public class ReportServiceImpl implements ReportService {
     private final CurrentUserHelper currentUserHelper;
 
     @Override
-    public ReportResponse<ReportCategoryData> showReportCategory(Integer month, Integer year, CategoryType type) {
-        ReportResponse response = new ReportResponse();
+    public ReportResponse<ReportCategoryData> showReportCategory(
+            Integer month,
+            Integer year,
+            CategoryType type) {
+        ReportResponse<ReportCategoryData> response = new ReportResponse<>();
         response.setSuccess(true);
         response.setMessage("Category breakdown fetched successfully");
-        response.setData(mapToData(month, year, type));
+        response.setData(mapToCategoryData(month, year, type));
 
         return response;
     }
 
     @Override
-    public ReportResponse<MonthlyData> showMonthly(Integer month, Integer year){
-        ReportResponse response = new ReportResponse();
+    public ReportResponse<MonthlyData> showMonthly(
+            Integer month,
+            Integer year){
+        ReportResponse<MonthlyData> response = new ReportResponse<>();
         response.setSuccess(true);
         response.setMessage("Monthly financial report fetched successfully");
         response.setData(mapToMonthlyData(month,year));
@@ -45,6 +55,19 @@ public class ReportServiceImpl implements ReportService {
         return response;
     }
 
+    @Override
+    public ReportResponse<SummaryData> showSummary(
+            Integer month,
+            Integer year){
+        ReportResponse<SummaryData> response = new ReportResponse<>();
+        response.setSuccess(true);
+        response.setMessage("Monthly summary fetched successfully");
+        response.setData(mapToSummaryData(month,year));
+
+        return response;
+    }
+
+    //Tinh Phan tram cua Category
     private BigDecimal getPercentage(BigDecimal amount, BigDecimal total) {
         if (total == null || amount == null
                 || total.compareTo(BigDecimal.ZERO) == 0) {
@@ -56,18 +79,26 @@ public class ReportServiceImpl implements ReportService {
                 .divide(total, 2, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal getTotalByType(Long userId, Integer month, Integer year, CategoryType type) {
+    //Tinh tong cua type do trong thang
+    private BigDecimal getTotalByType(Long userId,
+                                      Integer month,
+                                      Integer year,
+                                      CategoryType type) {
         BigDecimal total = transactionRepository.getTotalByType(userId, month, year, type);
         return total == null ? BigDecimal.ZERO : total;
     }
 
+    //Chuyen doi thang tu so sang viet tat cua thang
     private String parseMonthToString(Integer month){
         return Month.of(month)
                 .getDisplayName(TextStyle.SHORT, Locale.ENGLISH)
                 .toUpperCase();
     }
 
-    private ReportCategoryData mapToData(Integer month, Integer year, CategoryType type) {
+    //Map theo category
+    private ReportCategoryData mapToCategoryData(Integer month,
+                                                 Integer year,
+                                                 CategoryType type) {
         User user = currentUserHelper.getCurrentUser();
         Long userId = user.getId();
 
@@ -89,6 +120,7 @@ public class ReportServiceImpl implements ReportService {
         );
     }
 
+    //Map theo Monthly
     private MonthlyData mapToMonthlyData(Integer month, Integer year){
         User user = currentUserHelper.getCurrentUser();
         Long userId = user.getId();
@@ -99,7 +131,7 @@ public class ReportServiceImpl implements ReportService {
         String monthName = Month.of(month)
                 .getDisplayName(TextStyle.FULL, Locale.ENGLISH);
 
-        SummaryData summary = new SummaryData(
+        SummaryMonthlyData summary = new SummaryMonthlyData(
                 monthName + ' ' +year,
                 incomeByMonth,
                 expenseByMonth
@@ -121,6 +153,31 @@ public class ReportServiceImpl implements ReportService {
         );
 
         return data;
+
+    }
+
+    //Map theo Summary
+    private SummaryData mapToSummaryData(Integer month, Integer year){
+        User user = currentUserHelper.getCurrentUser();
+        Long userId = user.getId();
+
+        String monthRes = Month.of(month)
+                .getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+
+        BigDecimal totalIncomeMonth = getTotalByType(userId,month,year,CategoryType.INCOME);
+        BigDecimal totalExpenseByMonth = getTotalByType(userId,month,year,CategoryType.EXPENSE);
+        BigDecimal balances = totalIncomeMonth.subtract(totalExpenseByMonth);
+
+        List<TopExpenses> topExpenses = transactionRepository.showTopExpenses(userId,month,year,CategoryType.EXPENSE);
+
+        return new SummaryData(
+                monthRes,
+                year.shortValue(),
+                totalIncomeMonth,
+                totalExpenseByMonth,
+                balances,
+                topExpenses
+        );
 
     }
 }

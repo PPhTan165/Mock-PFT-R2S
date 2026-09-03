@@ -1,4 +1,4 @@
-package org.example.pft.dto.report;
+package org.example.pft.dto.report.category;
 
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.AllArgsConstructor;
