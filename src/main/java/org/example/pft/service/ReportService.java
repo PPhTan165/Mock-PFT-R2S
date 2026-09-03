@@ -1,7 +1,7 @@
 package org.example.pft.service;
 
-import org.example.pft.dto.report.MonthlyData;
-import org.example.pft.dto.report.ReportCategoryData;
+import org.example.pft.dto.report.monthly.MonthlyData;
+import org.example.pft.dto.report.monthly.ReportCategoryData;
 import org.example.pft.dto.report.ReportResponse;
 import org.example.pft.enums.CategoryType;
 

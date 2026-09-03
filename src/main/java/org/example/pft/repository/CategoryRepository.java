@@ -1,6 +1,6 @@
 package org.example.pft.repository;
 
-import org.example.pft.dto.report.ReportCategory;
+import org.example.pft.dto.report.monthly.ReportCategory;
 import org.example.pft.entity.Category;
 import org.example.pft.entity.User;
 import org.example.pft.enums.CategoryType;

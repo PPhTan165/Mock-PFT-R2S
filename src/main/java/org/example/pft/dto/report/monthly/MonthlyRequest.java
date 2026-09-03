@@ -1,4 +1,4 @@
-package org.example.pft.dto.report;
+package org.example.pft.dto.report.monthly;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

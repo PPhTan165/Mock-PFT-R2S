@@ -1,4 +1,4 @@
-package org.example.pft.dto.report;
+package org.example.pft.dto.report.monthly;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
