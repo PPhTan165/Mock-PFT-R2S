@@ -1,8 +1,8 @@
 package org.example.pft.controller;
 
-import org.example.pft.dto.login.LoginData;
-import org.example.pft.dto.login.LoginRequest;
-import org.example.pft.dto.login.LoginResponse;
+import org.example.pft.dto.auth.LoginData;
+import org.example.pft.dto.auth.LoginRequest;
+import org.example.pft.dto.auth.LoginResponse;
 import org.example.pft.security.CustomUserDetailsService;
 import org.example.pft.security.JwtAuthenticationFilter;
 import org.example.pft.security.JwtService;

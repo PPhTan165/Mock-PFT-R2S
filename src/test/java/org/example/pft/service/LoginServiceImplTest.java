@@ -1,7 +1,7 @@
 package org.example.pft.service;
 
-import org.example.pft.dto.login.LoginRequest;
-import org.example.pft.dto.login.LoginResponse;
+import org.example.pft.dto.auth.LoginRequest;
+import org.example.pft.dto.auth.LoginResponse;
 import org.example.pft.entity.User;
 import org.example.pft.exception.BusinessValidationException;
 import org.example.pft.repository.UserRepository;
@@ -49,7 +49,7 @@ class LoginServiceImplTest {
         request.setPassword("123456");
 
         user = new User();
-        user.setId(1);
+        user.setId(1L);
         user.setEmail("user@example.com");
         user.setPassword("encoded-password");
         user.setFailedLoginAttempts(0);
