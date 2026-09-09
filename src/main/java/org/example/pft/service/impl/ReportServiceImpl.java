@@ -169,6 +169,9 @@ public class ReportServiceImpl implements ReportService {
         BigDecimal balances = totalIncomeMonth.subtract(totalExpenseByMonth);
 
         List<TopExpenses> topExpenses = transactionRepository.showTopExpenses(userId,month,year,CategoryType.EXPENSE);
+        for (TopExpenses topExpense : topExpenses) {
+            topExpense.setPercentage(getPercentage(topExpense.getAmount(), totalExpenseByMonth));
+        }
 
         return new SummaryData(
                 monthRes,

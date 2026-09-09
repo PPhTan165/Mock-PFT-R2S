@@ -15,6 +15,7 @@ import org.example.pft.security.JwtService;
 import org.example.pft.security.RestAccessDeniedHandler;
 import org.example.pft.security.RestAuthenticationEntityPoint;
 import org.example.pft.security.SecurityConfig;
+import org.example.pft.service.PdfExportService;
 import org.example.pft.service.ReportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,9 @@ class ReportControllerSecurityTest {
 
     @MockitoBean
     ReportService reportService;
+
+    @MockitoBean
+    PdfExportService pdfExportService;
 
     @MockitoBean
     JwtService jwtService;
