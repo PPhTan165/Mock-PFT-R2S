@@ -9,10 +9,15 @@ import com.lowagie.text.pdf.PdfWriter;
 import lombok.AllArgsConstructor;
 import org.example.pft.dto.report.ReportResponse;
 import org.example.pft.dto.report.monthly.ChartData;
+import org.example.pft.dto.report.monthly.MonthlyData;
 import org.example.pft.dto.report.pdf.PdfExportRequest;
 import org.example.pft.dto.report.summary.SummaryData;
 import org.example.pft.dto.report.summary.TopExpenses;
 import org.example.pft.entity.User;
+import org.example.pft.enums.ReportType;
+import org.example.pft.exception.BusinessException;
+import org.example.pft.exception.BusinessValidationException;
+import org.example.pft.exception.FileExportException;
 import org.example.pft.helper.CurrentUserHelper;
 import org.example.pft.helper.PdfReportHelper;
 import org.example.pft.service.ChartService;
@@ -20,12 +25,14 @@ import org.example.pft.service.PdfExportService;
 import org.example.pft.service.ReportService;
 import org.springframework.stereotype.Service;
 
-import javax.print.Doc;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigDecimal;
+import java.nio.file.AccessDeniedException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Month;
 import java.time.YearMonth;
 import java.time.format.TextStyle;
@@ -43,10 +50,14 @@ public class PdfExportServiceImpl implements PdfExportService {
     // Generate a local PDF report from the validated request.
     @Override
     public ReportResponse<String> exportPDF(PdfExportRequest request) {
+        validateRequest(request);
 
-        SummaryData data = reportService.showSummary(request.getMonth(), request.getYear()).getData();
-        List<ChartData> chartData = reportService.showMonthly(request.getMonth(),request.getYear()).getData().getChart();
-        Path filePath = createFilePath(request);
+        User user = currentUserHelper.getCurrentUser();
+        validateAuthenticatedUser(user);
+
+        SummaryData data = getSummaryData(request);
+        List<ChartData> chartData = getMonthlyChartData(request);
+        Path filePath = createFilePath(request, user);
         writePdf(filePath, request, data, chartData);
 
         String type = request.getReportType().toString().toLowerCase();
@@ -58,7 +69,46 @@ public class PdfExportServiceImpl implements PdfExportService {
         return response;
     }
 
-    private Path createFilePath(PdfExportRequest request) {
+    private void validateRequest(PdfExportRequest request) {
+        if (request == null) {
+            throw new BusinessValidationException("PDF export request is required");
+        }
+
+        if (request.getMonth() == null) {
+            throw new BusinessValidationException("Month is required");
+        }
+
+        if (request.getMonth() < 1 || request.getMonth() > 12) {
+            throw new BusinessValidationException("Month must be between 1 and 12");
+        }
+
+        if (request.getYear() == null) {
+            throw new BusinessValidationException("Year is required");
+        }
+
+        if (request.getReportType() == null) {
+            request.setReportType(ReportType.SUMMARY);
+        }
+    }
+
+    private void validateAuthenticatedUser(User user) {
+        if (user == null || user.getId() == null) {
+            throw new BusinessValidationException("Authenticated user is required to export PDF");
+        }
+    }
+
+    private SummaryData getSummaryData(PdfExportRequest request) {
+        ReportResponse<SummaryData> response = reportService.showSummary(request.getMonth(), request.getYear());
+        return response == null ? null : response.getData();
+    }
+
+    private List<ChartData> getMonthlyChartData(PdfExportRequest request) {
+        ReportResponse<MonthlyData> response = reportService.showMonthly(request.getMonth(), request.getYear());
+        MonthlyData data = response == null ? null : response.getData();
+        return data == null || data.getChart() == null ? List.of() : data.getChart();
+    }
+
+    private Path createFilePath(PdfExportRequest request, User user) {
         try {
             // Ensure the local reports folder exists before writing the PDF file.
             Files.createDirectories(Path.of("reports"));
@@ -67,8 +117,6 @@ public class PdfExportServiceImpl implements PdfExportService {
             // Stop the export when the application cannot prepare the output folder.
             throw new RuntimeException("Could not create reports directory", ex);
         }
-
-        User user = currentUserHelper.getCurrentUser();
 
         String fileName = String.format(
                 "%d_%s_%s_%d.pdf",
@@ -83,6 +131,38 @@ public class PdfExportServiceImpl implements PdfExportService {
     }
 
     private void writePdf(Path filePath, PdfExportRequest request, SummaryData data, List<ChartData> chartData) {
+        Path tempFile = null;
+
+        try {
+            validateTargetFile(filePath);
+            tempFile = Files.createTempFile(filePath.getParent(), filePath.getFileName().toString(), ".tmp");
+            writePdfContent(tempFile, request, data, chartData);
+            replacePdfFile(tempFile, filePath);
+            tempFile = null;
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (DocumentException ex) {
+            throw new RuntimeException("Could not generate PDF report", ex);
+        } catch (IOException ex) {
+            throw mapFileWriteException(ex);
+        } finally {
+            if (tempFile != null) {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException ignored) {
+                }
+            }
+        }
+    }
+
+    private void validateTargetFile(Path filePath) {
+        if (Files.exists(filePath) && !Files.isRegularFile(filePath)) {
+            throw new FileExportException("Report PDF path is not a writable file.");
+        }
+    }
+
+    private void writePdfContent(Path filePath, PdfExportRequest request, SummaryData data, List<ChartData> chartData)
+            throws DocumentException, IOException {
         Document document = new Document(PageSize.A4);
         OutputStream outputStream = null;
 
@@ -130,9 +210,6 @@ public class PdfExportServiceImpl implements PdfExportService {
                 }
             }
 
-        } catch (DocumentException | IOException ex) {
-            // Convert PDF/file writing failures into a runtime error for the existing exception flow.
-            throw new RuntimeException("Could not generate PDF report", ex);
         } finally {
             // Close the document before closing the stream so OpenPDF can finish writing the file.
             if (document.isOpen()) {
@@ -147,6 +224,22 @@ public class PdfExportServiceImpl implements PdfExportService {
                 }
             }
         }
+    }
+
+    private void replacePdfFile(Path tempFile, Path filePath) throws IOException {
+        try {
+            Files.move(tempFile, filePath, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException ex) {
+            throw mapFileWriteException(ex);
+        }
+    }
+
+    private RuntimeException mapFileWriteException(IOException ex) {
+        if (ex instanceof AccessDeniedException || ex instanceof FileSystemException) {
+            return new FileExportException("Report PDF file cannot be written. Close it if it is open and try again.");
+        }
+
+        return new RuntimeException("Could not generate PDF report", ex);
     }
 
     private void writeSummaryTable(Document document, SummaryData data) throws DocumentException {
@@ -196,7 +289,7 @@ public class PdfExportServiceImpl implements PdfExportService {
 
     }
 
-    private void writeTopExpensesChart(Document document,PdfExportRequest request,SummaryData data){
+    private void writeTopExpensesChart(Document document,PdfExportRequest request,SummaryData data) throws DocumentException {
         if (Boolean.TRUE.equals(request.getIncludeTopExpenses())) {
             Image topExpensesChart = chartService.createTopExpensesChart(data == null ? null : data.getTopExpenses());
             addChart(document, topExpensesChart);

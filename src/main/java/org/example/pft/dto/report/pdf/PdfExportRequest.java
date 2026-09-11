@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import org.example.pft.enums.ReportType;
 
+import java.util.Locale;
+
 @Data
 public class PdfExportRequest {
 
@@ -22,4 +24,17 @@ public class PdfExportRequest {
     private Boolean includeTopExpenses;
 
     private ReportType reportType = ReportType.SUMMARY;
+
+    public void setReportType(ReportType reportType) {
+        this.reportType = reportType == null ? ReportType.SUMMARY : reportType;
+    }
+
+    public void setReportType(String reportType) {
+        if (reportType == null || reportType.isBlank()) {
+            this.reportType = ReportType.SUMMARY;
+            return;
+        }
+
+        this.reportType = ReportType.valueOf(reportType.trim().toUpperCase(Locale.ENGLISH));
+    }
 }
