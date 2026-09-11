@@ -6,6 +6,7 @@ import org.example.pft.dto.report.category.ReportCategoryData;
 import org.example.pft.dto.report.monthly.ChartData;
 import org.example.pft.dto.report.monthly.MonthlyData;
 import org.example.pft.dto.report.monthly.SummaryMonthlyData;
+import org.example.pft.dto.report.pdf.PdfExportRequest;
 import org.example.pft.dto.report.summary.SummaryData;
 import org.example.pft.dto.report.summary.TopExpenses;
 import org.example.pft.enums.CategoryType;
@@ -23,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -32,10 +34,12 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ReportController.class)
@@ -66,6 +70,7 @@ class ReportControllerSecurityTest {
     private ReportResponse<ReportCategoryData> categoryResponse;
     private ReportResponse<MonthlyData> monthlyResponse;
     private ReportResponse<SummaryData> summaryResponse;
+    private ReportResponse<String> pdfResponse;
 
     @BeforeEach
     void setup() {
@@ -97,6 +102,11 @@ class ReportControllerSecurityTest {
                 new BigDecimal("7000000"),
                 List.of(new TopExpenses("Food", "food-icon", "food.png", new BigDecimal("3000000")))
         ));
+
+        pdfResponse = new ReportResponse<>();
+        pdfResponse.setSuccess(true);
+        pdfResponse.setMessage("summary report PDF generated successfully");
+        pdfResponse.setData("reports/1_summary_sep_2026.pdf");
     }
 
     @Test
@@ -184,5 +194,109 @@ class ReportControllerSecurityTest {
                 .andExpect(status().isUnprocessableContent());
 
         verify(reportService, never()).showSummary(13, 2026);
+    }
+
+    @Test
+    void exportPDF_withoutToken_shouldReturn401() throws Exception {
+        mockMvc.perform(post("/api/reports/export/pdf")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "month": 9,
+                                  "year": 2026,
+                                  "reportType": "SUMMARY",
+                                  "includeChart": true,
+                                  "includeTopExpenses": false
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        verify(pdfExportService, never()).exportPDF(any());
+    }
+
+    @Test
+    @WithMockUser
+    void exportPDF_withInvalidRequest_shouldReturn422() throws Exception {
+        mockMvc.perform(post("/api/reports/export/pdf")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "month": 13,
+                                  "year": 2026,
+                                  "reportType": "SUMMARY"
+                                }
+                                """))
+                .andExpect(status().isUnprocessableContent());
+
+        verify(pdfExportService, never()).exportPDF(any());
+    }
+
+    @Test
+    @WithMockUser
+    void exportPDF_withAuthenticatedUser_shouldReturn200() throws Exception {
+        when(pdfExportService.exportPDF(any(PdfExportRequest.class)))
+                .thenReturn(pdfResponse);
+
+        mockMvc.perform(post("/api/reports/export/pdf")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "month": 9,
+                                  "year": 2026,
+                                  "reportType": "SUMMARY",
+                                  "includeChart": true,
+                                  "includeTopExpenses": false
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        verify(pdfExportService).exportPDF(any(PdfExportRequest.class));
+    }
+
+    @Test
+    @WithMockUser
+    void exportPDF_withoutReportType_shouldDefaultToSummary() throws Exception {
+        when(pdfExportService.exportPDF(any(PdfExportRequest.class)))
+                .thenReturn(pdfResponse);
+
+        mockMvc.perform(post("/api/reports/export/pdf")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "month": 9,
+                                  "year": 2026,
+                                  "includeChart": true,
+                                  "includeTopExpenses": false
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        verify(pdfExportService).exportPDF(argThat(request ->
+                request.getReportType() == org.example.pft.enums.ReportType.SUMMARY
+        ));
+    }
+
+    @Test
+    @WithMockUser
+    void exportPDF_withBlankReportType_shouldDefaultToSummary() throws Exception {
+        when(pdfExportService.exportPDF(any(PdfExportRequest.class)))
+                .thenReturn(pdfResponse);
+
+        mockMvc.perform(post("/api/reports/export/pdf")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "month": 9,
+                                  "year": 2026,
+                                  "reportType": "",
+                                  "includeChart": true,
+                                  "includeTopExpenses": false
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        verify(pdfExportService).exportPDF(argThat(request ->
+                request.getReportType() == org.example.pft.enums.ReportType.SUMMARY
+        ));
     }
 }
