@@ -2,29 +2,32 @@ package org.example.pft.service.impl;
 
 import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
+import com.lowagie.text.Image;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import lombok.AllArgsConstructor;
 import org.example.pft.dto.report.ReportResponse;
+import org.example.pft.dto.report.monthly.ChartData;
 import org.example.pft.dto.report.pdf.PdfExportRequest;
 import org.example.pft.dto.report.summary.SummaryData;
 import org.example.pft.dto.report.summary.TopExpenses;
 import org.example.pft.entity.User;
-import org.example.pft.enums.ReportType;
-import org.example.pft.exception.BusinessValidationException;
 import org.example.pft.helper.CurrentUserHelper;
 import org.example.pft.helper.PdfReportHelper;
+import org.example.pft.service.ChartService;
 import org.example.pft.service.PdfExportService;
 import org.example.pft.service.ReportService;
 import org.springframework.stereotype.Service;
 
+import javax.print.Doc;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Month;
+import java.time.YearMonth;
 import java.time.format.TextStyle;
 import java.util.List;
 import java.util.Locale;
@@ -35,23 +38,22 @@ public class PdfExportServiceImpl implements PdfExportService {
     private final ReportService reportService;
     private final CurrentUserHelper currentUserHelper;
     private final PdfReportHelper pdfReportHelper;
+    private final ChartService chartService;
 
     // Generate a local PDF report from the validated request.
     @Override
     public ReportResponse<String> exportPDF(PdfExportRequest request) {
-        ReportType reportType = request.getReportType() == null ? ReportType.SUMMARY : request.getReportType();
-        if (reportType != ReportType.SUMMARY) {
-            throw new BusinessValidationException("Only SUMMARY PDF export is supported now");
-        }
 
         SummaryData data = reportService.showSummary(request.getMonth(), request.getYear()).getData();
-        System.out.println(data);
+        List<ChartData> chartData = reportService.showMonthly(request.getMonth(),request.getYear()).getData().getChart();
         Path filePath = createFilePath(request);
-        writeSummaryPdf(filePath, request, data);
+        writePdf(filePath, request, data, chartData);
+
+        String type = request.getReportType().toString().toLowerCase();
 
         ReportResponse<String> response = new ReportResponse<>();
         response.setSuccess(true);
-        response.setMessage("Summary report PDF generated successfully");
+        response.setMessage(type + " report PDF generated successfully");
         response.setData(filePath.toString());
         return response;
     }
@@ -66,13 +68,12 @@ public class PdfExportServiceImpl implements PdfExportService {
             throw new RuntimeException("Could not create reports directory", ex);
         }
 
-        // Get the authenticated user so the file name belongs to the current account.
         User user = currentUserHelper.getCurrentUser();
 
-        // Build a stable file name, for example: 123_summary_apr_2024.pdf.
         String fileName = String.format(
-                "%d_summary_%s_%d.pdf",
+                "%d_%s_%s_%d.pdf",
                 user.getId(),
+                request.getReportType().toString().toLowerCase(),
                 monthShortName(request.getMonth()).toLowerCase(Locale.ENGLISH),
                 request.getYear()
         );
@@ -81,39 +82,52 @@ public class PdfExportServiceImpl implements PdfExportService {
         return Path.of("reports", fileName);
     }
 
-    private void writeSummaryPdf(Path filePath, PdfExportRequest request, SummaryData data) {
-        // Create an A4 PDF document instance before binding it to the output file.
+    private void writePdf(Path filePath, PdfExportRequest request, SummaryData data, List<ChartData> chartData) {
         Document document = new Document(PageSize.A4);
         OutputStream outputStream = null;
 
         try {
-            // Open a file output stream to write the generated PDF bytes to the target path.
             outputStream = Files.newOutputStream(filePath);
-
-            // Connect OpenPDF's writer to the document and the local file stream.
             PdfWriter.getInstance(document, outputStream);
 
-            // Open the document before adding paragraphs, tables, or other PDF content.
             document.open();
 
-            // Add the main report title with the selected month and year.
             pdfReportHelper.addTitle(document, "Summary Report - " + monthFullName(request.getMonth()) + " " + request.getYear());
 
-            // If there is no summary data, keep generating the PDF and show a no-data message.
             if (isEmptySummary(data)) {
                 pdfReportHelper.addText(document, "No financial data found for " + monthFullName(request.getMonth()) + " " + request.getYear());
             }
 
-            // Add the summary section title before rendering income, expense, balance, and budget status.
-            pdfReportHelper.addSectionTitle(document, "Thong tin tong hop thang");
+            switch (request.getReportType()) {
+                case SUMMARY -> {
+                    pdfReportHelper.addSectionTitle(document, "Thong tin tong hop thang");
+                    writeSummaryTable(document, data);
+                    if (Boolean.TRUE.equals(request.getIncludeChart()) && !isEmptySummary(data)) {
+                        writeSummaryCharts(document, request, data);
+                    }
+                }
 
-            // Render the required monthly summary table.
-            writeSummaryTable(document, data);
+                case MONTHLY -> {
+                    pdfReportHelper.addSectionTitle(document, "So sanh thang truoc");
+                    writeMonthlyTable(document, request.getMonth(), request.getYear());
+                    if (Boolean.TRUE.equals(request.getIncludeChart()) && !isEmptySummary(data)) {
+                        writeMonthlyLineChart(document, request, chartData);
+                    }
+                }
+
+                case CATEGORY -> {
+                    pdfReportHelper.addSectionTitle(document, "Chua hoan thien");
+
+                }
+            }
 
             // Render Top 3 expenses only when the client explicitly includes this section.
             if (Boolean.TRUE.equals(request.getIncludeTopExpenses())) {
                 pdfReportHelper.addSectionTitle(document, "Top 3 khoan chi tieu");
                 writeTopExpensesTable(document, data);
+                if(Boolean.TRUE.equals(request.getIncludeChart())){
+                    writeTopExpensesChart(document,request,data);
+                }
             }
 
         } catch (DocumentException | IOException ex) {
@@ -171,6 +185,57 @@ public class PdfExportServiceImpl implements PdfExportService {
         }
 
         document.add(table);
+    }
+
+    private void writeSummaryCharts(Document document, PdfExportRequest request, SummaryData data) throws DocumentException {
+        pdfReportHelper.addSectionTitle(document, "Charts");
+
+        Image incomeExpenseChart = chartService.createIncomeExpenseChart(data);
+        addChart(document, incomeExpenseChart);
+
+
+    }
+
+    private void writeTopExpensesChart(Document document,PdfExportRequest request,SummaryData data){
+        if (Boolean.TRUE.equals(request.getIncludeTopExpenses())) {
+            Image topExpensesChart = chartService.createTopExpensesChart(data == null ? null : data.getTopExpenses());
+            addChart(document, topExpensesChart);
+        }
+    }
+
+    private void writeMonthlyLineChart(Document document, PdfExportRequest request, List<ChartData> data) throws DocumentException {
+        Image monthlyLineChart = chartService.createMonthlyLineChart(data, request.getYear());
+        addChart(document, monthlyLineChart);
+
+    }
+
+    private void addChart(Document document, Image chart) throws DocumentException {
+        if (chart != null) {
+            document.add(chart);
+        }
+    }
+
+    private void writeMonthlyTable(Document document, Integer month, Integer year) throws DocumentException {
+        SummaryData currentMonth = reportService.showSummary(month, year).getData();
+        YearMonth previousYearMonth = YearMonth.of(year, month).minusMonths(1);
+        SummaryData previousMonth = reportService
+                .showSummary(previousYearMonth.getMonthValue(), previousYearMonth.getYear())
+                .getData();
+
+        PdfPTable table = pdfReportHelper.createTable(4, 3, 2, 2, 3);
+        pdfReportHelper.addHeader(table, "Thang", "Income", "Expenses", "Balance");
+
+        addMonthlyRow(table, previousMonth);
+        addMonthlyRow(table, currentMonth);
+
+        document.add(table);
+    }
+
+    private void addMonthlyRow(PdfPTable table, SummaryData data) {
+        pdfReportHelper.addCell(table, data == null ? "N/A" : data.getMonth() + " " + data.getYear());
+        pdfReportHelper.addCell(table, pdfReportHelper.formatAmount(data == null ? null : data.getIncome()));
+        pdfReportHelper.addCell(table, pdfReportHelper.formatAmount(data == null ? null : data.getExpense()));
+        pdfReportHelper.addCell(table, pdfReportHelper.formatAmount(data == null ? null : data.getBalance()));
     }
 
     private boolean isEmptySummary(SummaryData data) {
