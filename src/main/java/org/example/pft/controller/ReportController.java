@@ -6,11 +6,15 @@ import org.example.pft.dto.report.*;
 import org.example.pft.dto.report.monthly.MonthlyData;
 import org.example.pft.dto.report.monthly.MonthlyRequest;
 import org.example.pft.dto.report.category.ReportCategoryData;
+import org.example.pft.dto.report.pdf.PdfExportRequest;
 import org.example.pft.dto.report.summary.SummaryData;
+import org.example.pft.service.PdfExportService;
 import org.example.pft.service.ReportService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -19,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 @AllArgsConstructor
 public class ReportController {
     private final ReportService reportService;
+    private final PdfExportService pdfExportService;
 
     @GetMapping("/category")
     public ResponseEntity<ReportResponse<ReportCategoryData>> showReportCategory(
@@ -39,5 +44,12 @@ public class ReportController {
             @Valid @ModelAttribute MonthlyRequest request
     ){
         return ResponseEntity.ok().body(reportService.showSummary(request.getMonth(),request.getYear()));
+    }
+
+    @PostMapping("/export/pdf")
+    public ResponseEntity<ReportResponse<String>> exportPDF(
+            @Valid @RequestBody PdfExportRequest request
+    ){
+        return ResponseEntity.ok().body(pdfExportService.exportPDF(request));
     }
 }

@@ -115,7 +115,7 @@ public interface TransactionRepository extends JpaRepository<Transaction,Long> {
                 ci.categoryName,
                 ci.emoji,
                 ci.iconUrl,
-                t.amount
+                sum(t.amount) as amount
             )
             from Transaction t
             join t.category c
@@ -124,10 +124,11 @@ public interface TransactionRepository extends JpaRepository<Transaction,Long> {
               and month(t.date) = :month
               and year(t.date) = :year
               and c.type = :type
-            order by t.amount desc
+            group by ci.categoryName, ci.emoji, ci.iconUrl
+            order by amount desc
             limit 3
 """)
-    List<TopExpenses> showTopExpenses(
+    List<TopExpenses> showTopCategories(
             @Param("userId") Long userId,
             @Param("month") Integer month,
             @Param("year") Integer year,
