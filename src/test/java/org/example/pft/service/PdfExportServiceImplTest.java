@@ -16,6 +16,12 @@ import org.example.pft.exception.FileExportException;
 import org.example.pft.helper.CurrentUserHelper;
 import org.example.pft.helper.PdfReportHelper;
 import org.example.pft.service.impl.PdfExportServiceImpl;
+import org.example.pft.service.pdf.PdfOptionalSectionRenderer;
+import org.example.pft.service.pdf.PdfReportRenderer;
+import org.example.pft.service.pdf.render.CategoryPdfRenderer;
+import org.example.pft.service.pdf.render.MonthlyPdfRenderer;
+import org.example.pft.service.pdf.render.SummaryPdfRenderer;
+import org.example.pft.service.pdf.section.TopExpensesPdfSectionRenderer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,11 +65,22 @@ class PdfExportServiceImplTest {
         user = new User();
         user.setId(USER_ID);
 
+        PdfReportHelper pdfReportHelper = new PdfReportHelper();
+        List<PdfReportRenderer> reportRenderers = List.of(
+                new SummaryPdfRenderer(pdfReportHelper, chartService),
+                new MonthlyPdfRenderer(pdfReportHelper, chartService, reportService),
+                new CategoryPdfRenderer(pdfReportHelper, chartService)
+        );
+        List<PdfOptionalSectionRenderer> optionalSectionRenderers = List.of(
+                new TopExpensesPdfSectionRenderer(pdfReportHelper, chartService)
+        );
+
         pdfExportService = new PdfExportServiceImpl(
                 reportService,
                 currentUserHelper,
-                new PdfReportHelper(),
-                chartService
+                pdfReportHelper,
+                reportRenderers,
+                optionalSectionRenderers
         );
     }
 
