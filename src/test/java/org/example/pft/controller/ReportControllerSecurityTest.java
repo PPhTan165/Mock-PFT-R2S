@@ -32,6 +32,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -40,6 +42,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ReportController.class)
@@ -227,6 +230,28 @@ class ReportControllerSecurityTest {
                                 }
                                 """))
                 .andExpect(status().isUnprocessableContent());
+
+        verify(pdfExportService, never()).exportPDF(any());
+    }
+
+    @Test
+    @WithMockUser
+    void exportPDF_withInvalidReportType_shouldReturnValidationErrors() throws Exception {
+        mockMvc.perform(post("/api/reports/export/pdf")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "month": 13,
+                                  "year": 20263,
+                                  "includeChart": true,
+                                  "includeTopExpenses": false,
+                                  "reportType": "ASDASD"
+                                }
+                                """))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors[*].field").value(hasItems("month", "year", "reportType")))
+                .andExpect(jsonPath("$.errors[*].message").value(hasItem("Report type must be one of: SUMMARY, MONTHLY, CATEGORY")));
 
         verify(pdfExportService, never()).exportPDF(any());
     }

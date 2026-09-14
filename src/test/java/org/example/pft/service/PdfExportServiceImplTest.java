@@ -1,12 +1,15 @@
 package org.example.pft.service;
 
 import org.example.pft.dto.report.ReportResponse;
+import org.example.pft.dto.report.category.ReportCategory;
+import org.example.pft.dto.report.category.ReportCategoryData;
 import org.example.pft.dto.report.monthly.ChartData;
 import org.example.pft.dto.report.monthly.MonthlyData;
 import org.example.pft.dto.report.monthly.SummaryMonthlyData;
 import org.example.pft.dto.report.pdf.PdfExportRequest;
 import org.example.pft.dto.report.summary.SummaryData;
 import org.example.pft.entity.User;
+import org.example.pft.enums.CategoryType;
 import org.example.pft.enums.ReportType;
 import org.example.pft.exception.BusinessValidationException;
 import org.example.pft.exception.FileExportException;
@@ -24,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -140,25 +144,122 @@ class PdfExportServiceImplTest {
         }
     }
 
+    @Test
+    void exportPDF_withCategoryReport_shouldFetchIncomeAndExpenseCategoryData() throws Exception {
+        PdfExportRequest request = validRequest();
+        request.setReportType(ReportType.CATEGORY);
+        request.setIncludeChart(true);
+        Path targetPath = Path.of("reports", USER_ID + "_category_sep_2026.pdf");
+        List<ReportCategory> expenseCategories = List.of(
+                new ReportCategory("Food", new BigDecimal("300.00"), new BigDecimal("75.00")),
+                new ReportCategory("Transport", new BigDecimal("100.00"), new BigDecimal("25.00"))
+        );
+        List<ReportCategory> incomeCategories = List.of(
+                new ReportCategory("Salary", new BigDecimal("1000.00"), new BigDecimal("100.00"))
+        );
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(reportService.showSummary(MONTH, YEAR))
+                .thenReturn(summaryResponse());
+        when(reportService.showMonthly(MONTH, YEAR))
+                .thenReturn(monthlyResponse());
+        when(reportService.showReportCategory(MONTH, YEAR, CategoryType.EXPENSE))
+                .thenReturn(categoryResponse(CategoryType.EXPENSE, expenseCategories));
+        when(reportService.showReportCategory(MONTH, YEAR, CategoryType.INCOME))
+                .thenReturn(categoryResponse(CategoryType.INCOME, incomeCategories));
+
+        try {
+            pdfExportService.exportPDF(request);
+        } finally {
+            Files.deleteIfExists(targetPath);
+        }
+
+        verify(reportService).showReportCategory(MONTH, YEAR, CategoryType.EXPENSE);
+        verify(reportService).showReportCategory(MONTH, YEAR, CategoryType.INCOME);
+        verify(chartService).createSquareCategoryChart(expenseCategories, CategoryType.EXPENSE);
+        verify(chartService).createSquareCategoryChart(incomeCategories, CategoryType.INCOME);
+    }
+
+    @Test
+    void exportPDF_withEmptyCategoryReport_shouldReturnNoCategoryDataMessage() throws Exception {
+        PdfExportRequest request = request(4, 2024, ReportType.CATEGORY);
+        Path targetPath = Path.of("reports", USER_ID + "_category_apr_2024.pdf");
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(reportService.showSummary(4, 2024))
+                .thenReturn(summaryResponse(4, 2024, BigDecimal.ZERO, BigDecimal.ZERO));
+        when(reportService.showMonthly(4, 2024))
+                .thenReturn(monthlyResponse());
+        when(reportService.showReportCategory(4, 2024, CategoryType.EXPENSE))
+                .thenReturn(categoryResponse(CategoryType.EXPENSE, List.of()));
+        when(reportService.showReportCategory(4, 2024, CategoryType.INCOME))
+                .thenReturn(categoryResponse(CategoryType.INCOME, List.of()));
+
+        try {
+            ReportResponse<String> response = pdfExportService.exportPDF(request);
+
+            assertEquals("No category data found for April 2024", response.getMessage());
+        } finally {
+            Files.deleteIfExists(targetPath);
+        }
+    }
+
+    @Test
+    void exportPDF_withEmptyMonthlyReport_shouldReturnNoFinancialDataMessage() throws Exception {
+        PdfExportRequest request = request(4, 2024, ReportType.MONTHLY);
+        Path targetPath = Path.of("reports", USER_ID + "_monthly_apr_2024.pdf");
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(reportService.showSummary(4, 2024))
+                .thenReturn(summaryResponse(4, 2024, BigDecimal.ZERO, BigDecimal.ZERO));
+        when(reportService.showSummary(3, 2024))
+                .thenReturn(summaryResponse(3, 2024, BigDecimal.ZERO, BigDecimal.ZERO));
+        when(reportService.showMonthly(4, 2024))
+                .thenReturn(monthlyResponse());
+
+        try {
+            ReportResponse<String> response = pdfExportService.exportPDF(request);
+
+            assertEquals("No financial data found for April 2024", response.getMessage());
+        } finally {
+            Files.deleteIfExists(targetPath);
+        }
+    }
+
     private PdfExportRequest validRequest() {
+        return request(MONTH, YEAR, ReportType.SUMMARY);
+    }
+
+    private PdfExportRequest request(Integer month, Integer year, ReportType reportType) {
         PdfExportRequest request = new PdfExportRequest();
-        request.setMonth(MONTH);
-        request.setYear(YEAR);
-        request.setReportType(ReportType.SUMMARY);
+        request.setMonth(month);
+        request.setYear(year);
+        request.setReportType(reportType);
         request.setIncludeChart(false);
         request.setIncludeTopExpenses(false);
         return request;
     }
 
     private ReportResponse<SummaryData> summaryResponse() {
+        return summaryResponse(MONTH, YEAR, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
+    private ReportResponse<SummaryData> summaryResponse(
+            Integer month,
+            Integer year,
+            BigDecimal income,
+            BigDecimal expense) {
         ReportResponse<SummaryData> response = new ReportResponse<>();
         response.setSuccess(true);
         response.setData(new SummaryData(
-                "September",
-                YEAR.shortValue(),
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
+                java.time.Month.of(month).getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ENGLISH),
+                year.shortValue(),
+                income,
+                expense,
+                income.subtract(expense),
                 List.of()
         ));
         return response;
@@ -170,6 +271,21 @@ class PdfExportServiceImplTest {
         response.setData(new MonthlyData(
                 List.of(new ChartData("SEP", BigDecimal.ZERO, BigDecimal.ZERO)),
                 new SummaryMonthlyData("September 2026", BigDecimal.ZERO, BigDecimal.ZERO)
+        ));
+        return response;
+    }
+
+    private ReportResponse<ReportCategoryData> categoryResponse(
+            CategoryType type,
+            List<ReportCategory> categories) {
+        ReportResponse<ReportCategoryData> response = new ReportResponse<>();
+        response.setSuccess(true);
+        response.setData(new ReportCategoryData(
+                type,
+                categories.stream()
+                        .map(ReportCategory::getAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add),
+                categories
         ));
         return response;
     }

@@ -1,17 +1,22 @@
 package org.example.pft.service.impl;
 
 import com.lowagie.text.Image;
+import org.example.pft.dto.report.category.ReportCategory;
 import org.example.pft.dto.report.monthly.ChartData;
 import org.example.pft.dto.report.summary.SummaryData;
 import org.example.pft.dto.report.summary.TopExpenses;
+import org.example.pft.enums.CategoryType;
 import org.example.pft.service.ChartService;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.CategoryAxis;
+import org.jfree.chart.labels.StandardPieSectionLabelGenerator;
 import org.jfree.chart.plot.CategoryPlot;
+import org.jfree.chart.plot.PiePlot;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.renderer.category.BarRenderer;
 import org.jfree.data.category.DefaultCategoryDataset;
+import org.jfree.data.general.DefaultPieDataset;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -119,6 +124,31 @@ public class ChartServiceImpl implements ChartService {
         return convertLineToPdfImage(chart, 480f, 200f);
     }
 
+    @Override
+    public Image createSquareCategoryChart(List<ReportCategory> categories, CategoryType type){
+        if(categories == null || categories.isEmpty()) return null;
+
+        DefaultPieDataset<String> dataset = new DefaultPieDataset<>();
+        for(ReportCategory item : categories){
+            dataset.setValue(
+                    item.getCategory(),
+                    item.getAmount()
+            );
+        }
+
+        JFreeChart chart = ChartFactory.createPieChart(
+                type + " by Category",
+                dataset,
+                true,
+                true,
+                false
+        );
+        stylePieChart(chart);
+
+        return convertToPdfImage(chart,600f, 300f);
+
+    }
+
     private void styleBarChart(JFreeChart chart) {
         chart.setBackgroundPaint(Color.WHITE);
 
@@ -145,6 +175,21 @@ public class ChartServiceImpl implements ChartService {
         domainAxis.setLowerMargin(0.02);
         domainAxis.setUpperMargin(0.02);
         domainAxis.setCategoryMargin(0.12);
+    }
+
+    private void stylePieChart(JFreeChart chart){
+
+        chart.setBackgroundPaint(Color.WHITE);
+
+        PiePlot<?> plot = (PiePlot<?>) chart.getPlot();
+
+        plot.setBackgroundPaint(Color.WHITE);
+
+        plot.setLabelGenerator(
+                new StandardPieSectionLabelGenerator(
+                        "{0}: {2}"
+                )
+        );
     }
 
     private Image convertToPdfImage(JFreeChart chart, float width, float height) {

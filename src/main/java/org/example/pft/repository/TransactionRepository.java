@@ -128,7 +128,7 @@ public interface TransactionRepository extends JpaRepository<Transaction,Long> {
             order by amount desc
             limit 3
 """)
-    List<TopExpenses> showTopExpenses(
+    List<TopExpenses> showTopCategories(
             @Param("userId") Long userId,
             @Param("month") Integer month,
             @Param("year") Integer year,

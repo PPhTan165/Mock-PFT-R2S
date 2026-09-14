@@ -121,7 +121,7 @@ class ReportServiceImplTest {
                 .thenReturn(new BigDecimal("1000.00"));
         when(transactionRepository.getTotalByType(USER_ID, MONTH, YEAR, CategoryType.EXPENSE))
                 .thenReturn(new BigDecimal("350.00"));
-        when(transactionRepository.showTopExpenses(USER_ID, MONTH, YEAR, CategoryType.EXPENSE))
+        when(transactionRepository.showTopCategories(USER_ID, MONTH, YEAR, CategoryType.EXPENSE))
                 .thenReturn(topExpenses);
 
         ReportResponse<?> response = reportService.showSummary(MONTH, YEAR);
@@ -130,6 +130,6 @@ class ReportServiceImplTest {
         assertTrue(response.isSuccess());
 
         verify(currentUserHelper).getCurrentUser();
-        verify(transactionRepository).showTopExpenses(USER_ID, MONTH, YEAR, CategoryType.EXPENSE);
+        verify(transactionRepository).showTopCategories(USER_ID, MONTH, YEAR, CategoryType.EXPENSE);
     }
 }

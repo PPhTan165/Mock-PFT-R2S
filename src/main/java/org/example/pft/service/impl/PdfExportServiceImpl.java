@@ -8,12 +8,15 @@ import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import lombok.AllArgsConstructor;
 import org.example.pft.dto.report.ReportResponse;
+import org.example.pft.dto.report.category.ReportCategory;
+import org.example.pft.dto.report.category.ReportCategoryData;
 import org.example.pft.dto.report.monthly.ChartData;
 import org.example.pft.dto.report.monthly.MonthlyData;
 import org.example.pft.dto.report.pdf.PdfExportRequest;
 import org.example.pft.dto.report.summary.SummaryData;
 import org.example.pft.dto.report.summary.TopExpenses;
 import org.example.pft.entity.User;
+import org.example.pft.enums.CategoryType;
 import org.example.pft.enums.ReportType;
 import org.example.pft.exception.BusinessException;
 import org.example.pft.exception.BusinessValidationException;
@@ -57,14 +60,15 @@ public class PdfExportServiceImpl implements PdfExportService {
 
         SummaryData data = getSummaryData(request);
         List<ChartData> chartData = getMonthlyChartData(request);
-        Path filePath = createFilePath(request, user);
-        writePdf(filePath, request, data, chartData);
+        CategoryReportData categoryReportData = getCategoryReportData(request);
 
-        String type = request.getReportType().toString().toLowerCase();
+        Path filePath = createFilePath(request, user);
+
+        writePdf(filePath, request, data, chartData, categoryReportData);
 
         ReportResponse<String> response = new ReportResponse<>();
         response.setSuccess(true);
-        response.setMessage(type + " report PDF generated successfully");
+        response.setMessage(buildResponseMessage(request, data, categoryReportData));
         response.setData(filePath.toString());
         return response;
     }
@@ -86,8 +90,14 @@ public class PdfExportServiceImpl implements PdfExportService {
             throw new BusinessValidationException("Year is required");
         }
 
-        if (request.getReportType() == null) {
-            request.setReportType(ReportType.SUMMARY);
+        if (request.getYear() < 1900 || request.getYear() > 9999) {
+            throw new BusinessValidationException("Year must be between 1900 and 9999");
+        }
+
+        try {
+            request.getReportType();
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessValidationException("Report type must be one of: SUMMARY, MONTHLY, CATEGORY");
         }
     }
 
@@ -106,6 +116,47 @@ public class PdfExportServiceImpl implements PdfExportService {
         ReportResponse<MonthlyData> response = reportService.showMonthly(request.getMonth(), request.getYear());
         MonthlyData data = response == null ? null : response.getData();
         return data == null || data.getChart() == null ? List.of() : data.getChart();
+    }
+
+    private List<ReportCategory> getCategoryPieChartData(PdfExportRequest request, CategoryType type){
+        ReportResponse<ReportCategoryData> response = reportService.showReportCategory(request.getMonth(),request.getYear(),type);
+        ReportCategoryData data = response == null ? null : response.getData();
+        return data == null || data.getCategories() == null ? List.of() : data.getCategories();
+    }
+
+    private CategoryReportData getCategoryReportData(PdfExportRequest request) {
+        if (request.getReportType() != ReportType.CATEGORY) {
+            return new CategoryReportData(List.of(), List.of());
+        }
+
+        return new CategoryReportData(
+                getCategoryPieChartData(request, CategoryType.EXPENSE),
+                getCategoryPieChartData(request, CategoryType.INCOME)
+        );
+    }
+
+    private String buildResponseMessage(
+            PdfExportRequest request,
+            SummaryData data,
+            CategoryReportData categoryReportData) {
+        String monthYear = monthFullName(request.getMonth()) + " " + request.getYear();
+
+        if (request.getReportType() == ReportType.CATEGORY && isEmptyCategoryReportData(categoryReportData)) {
+            return "No category data found for " + monthYear;
+        }
+
+        if (request.getReportType() == ReportType.MONTHLY && isEmptySummary(data)) {
+            return "No financial data found for " + monthYear;
+        }
+
+        String type = request.getReportType().toString().toLowerCase();
+        return type + " report PDF generated successfully";
+    }
+
+    private boolean isEmptyCategoryReportData(CategoryReportData data) {
+        return data == null
+                || (data.expenseCategories() == null || data.expenseCategories().isEmpty())
+                && (data.incomeCategories() == null || data.incomeCategories().isEmpty());
     }
 
     private Path createFilePath(PdfExportRequest request, User user) {
@@ -130,13 +181,18 @@ public class PdfExportServiceImpl implements PdfExportService {
         return Path.of("reports", fileName);
     }
 
-    private void writePdf(Path filePath, PdfExportRequest request, SummaryData data, List<ChartData> chartData) {
+    private void writePdf(
+            Path filePath,
+            PdfExportRequest request,
+            SummaryData data,
+            List<ChartData> chartData,
+            CategoryReportData categoryReportData) {
         Path tempFile = null;
 
         try {
             validateTargetFile(filePath);
             tempFile = Files.createTempFile(filePath.getParent(), filePath.getFileName().toString(), ".tmp");
-            writePdfContent(tempFile, request, data, chartData);
+            writePdfContent(tempFile, request, data, chartData, categoryReportData);
             replacePdfFile(tempFile, filePath);
             tempFile = null;
         } catch (BusinessException ex) {
@@ -161,8 +217,14 @@ public class PdfExportServiceImpl implements PdfExportService {
         }
     }
 
-    private void writePdfContent(Path filePath, PdfExportRequest request, SummaryData data, List<ChartData> chartData)
+    private void writePdfContent(
+            Path filePath,
+            PdfExportRequest request,
+            SummaryData data,
+            List<ChartData> chartData,
+            CategoryReportData categoryReportData)
             throws DocumentException, IOException {
+
         Document document = new Document(PageSize.A4);
         OutputStream outputStream = null;
 
@@ -172,7 +234,7 @@ public class PdfExportServiceImpl implements PdfExportService {
 
             document.open();
 
-            pdfReportHelper.addTitle(document, "Summary Report - " + monthFullName(request.getMonth()) + " " + request.getYear());
+            pdfReportHelper.addTitle(document, request.getReportType().name().toUpperCase()+" Report - " + monthFullName(request.getMonth()) + " " + request.getYear());
 
             if (isEmptySummary(data)) {
                 pdfReportHelper.addText(document, "No financial data found for " + monthFullName(request.getMonth()) + " " + request.getYear());
@@ -180,7 +242,7 @@ public class PdfExportServiceImpl implements PdfExportService {
 
             switch (request.getReportType()) {
                 case SUMMARY -> {
-                    pdfReportHelper.addSectionTitle(document, "Thong tin tong hop thang");
+                    pdfReportHelper.addSectionTitle(document, "Bang thong tin tong hop thang");
                     writeSummaryTable(document, data);
                     if (Boolean.TRUE.equals(request.getIncludeChart()) && !isEmptySummary(data)) {
                         writeSummaryCharts(document, request, data);
@@ -188,7 +250,7 @@ public class PdfExportServiceImpl implements PdfExportService {
                 }
 
                 case MONTHLY -> {
-                    pdfReportHelper.addSectionTitle(document, "So sanh thang truoc");
+                    pdfReportHelper.addSectionTitle(document, "Bang so sanh 2 thang truoc");
                     writeMonthlyTable(document, request.getMonth(), request.getYear());
                     if (Boolean.TRUE.equals(request.getIncludeChart()) && !isEmptySummary(data)) {
                         writeMonthlyLineChart(document, request, chartData);
@@ -196,8 +258,11 @@ public class PdfExportServiceImpl implements PdfExportService {
                 }
 
                 case CATEGORY -> {
-                    pdfReportHelper.addSectionTitle(document, "Chua hoan thien");
-
+                    writeCategorySection(document, CategoryType.EXPENSE, categoryReportData.expenseCategories());
+                    writeCategorySection(document, CategoryType.INCOME, categoryReportData.incomeCategories());
+                    if (Boolean.TRUE.equals(request.getIncludeChart())) {
+                        writeCategoryPieChart(document, categoryReportData);
+                    }
                 }
             }
 
@@ -261,6 +326,27 @@ public class PdfExportServiceImpl implements PdfExportService {
         document.add(table);
     }
 
+    private void writeCategorySection(Document document, CategoryType type, List<ReportCategory> categories)
+            throws DocumentException {
+        pdfReportHelper.addSectionTitle(document,  "Bang thu/chi: " + type);
+
+        if (categories == null || categories.isEmpty()) {
+            pdfReportHelper.addText(document, "No " + type.toString().toLowerCase(Locale.ENGLISH) + " category data available");
+            return;
+        }
+
+        PdfPTable table = pdfReportHelper.createTable(3, 3f, 2f, 2f);
+        pdfReportHelper.addHeader(table, "Category", "Amount", "Percentage");
+
+        for (ReportCategory item : categories) {
+            pdfReportHelper.addCell(table, item.getCategory());
+            pdfReportHelper.addCell(table, pdfReportHelper.formatAmount(item.getAmount()));
+            pdfReportHelper.addCell(table, pdfReportHelper.formatPercentage(item.getPercentage()));
+        }
+
+        document.add(table);
+    }
+
     private void writeTopExpensesTable(Document document, SummaryData data) throws DocumentException {
         List<TopExpenses> topExpenses = data == null ? List.of() : data.getTopExpenses();
         if (topExpenses == null || topExpenses.isEmpty()) {
@@ -285,8 +371,6 @@ public class PdfExportServiceImpl implements PdfExportService {
 
         Image incomeExpenseChart = chartService.createIncomeExpenseChart(data);
         addChart(document, incomeExpenseChart);
-
-
     }
 
     private void writeTopExpensesChart(Document document,PdfExportRequest request,SummaryData data) throws DocumentException {
@@ -300,6 +384,19 @@ public class PdfExportServiceImpl implements PdfExportService {
         Image monthlyLineChart = chartService.createMonthlyLineChart(data, request.getYear());
         addChart(document, monthlyLineChart);
 
+    }
+
+    private void writeCategoryPieChart(Document document, CategoryReportData categoryReportData) throws DocumentException{
+        Image expenseCategoryPieChart = chartService.createSquareCategoryChart(
+                categoryReportData.expenseCategories(),
+                CategoryType.EXPENSE
+        );
+        Image incomeCategoryPieChart = chartService.createSquareCategoryChart(
+                categoryReportData.incomeCategories(),
+                CategoryType.INCOME
+        );
+        addChart(document,expenseCategoryPieChart);
+        addChart(document,incomeCategoryPieChart);
     }
 
     private void addChart(Document document, Image chart) throws DocumentException {
@@ -348,5 +445,11 @@ public class PdfExportServiceImpl implements PdfExportService {
 
     private String monthFullName(Integer month) {
         return Month.of(month).getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+    }
+
+    private record CategoryReportData(
+            List<ReportCategory> expenseCategories,
+            List<ReportCategory> incomeCategories
+    ) {
     }
 }
