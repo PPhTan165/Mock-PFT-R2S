@@ -2,6 +2,8 @@ package org.example.pft.controller;
 
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
+import org.example.pft.dto.email.EmailExportRequest;
+import org.example.pft.dto.email.EmailExportResponse;
 import org.example.pft.dto.report.*;
 import org.example.pft.dto.report.monthly.MonthlyData;
 import org.example.pft.dto.report.monthly.MonthlyRequest;
@@ -9,6 +11,7 @@ import org.example.pft.dto.report.category.ReportCategoryData;
 import org.example.pft.dto.report.pdf.PdfExportRequest;
 import org.example.pft.dto.report.summary.SummaryData;
 import org.example.pft.service.PdfExportService;
+import org.example.pft.service.ReportEmailService;
 import org.example.pft.service.ReportService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController {
     private final ReportService reportService;
     private final PdfExportService pdfExportService;
+    private final ReportEmailService reportEmailService;
 
     @GetMapping("/category")
     public ResponseEntity<ReportResponse<ReportCategoryData>> showReportCategory(
@@ -51,5 +55,12 @@ public class ReportController {
             @Valid @RequestBody PdfExportRequest request
     ){
         return ResponseEntity.ok().body(pdfExportService.exportPDF(request));
+    }
+
+    @PostMapping("/export/email")
+    public ResponseEntity<EmailExportResponse> exportEmail(
+            @Valid @RequestBody EmailExportRequest request
+    ){
+        return ResponseEntity.ok().body(reportEmailService.sendSummaryReport(request));
     }
 }

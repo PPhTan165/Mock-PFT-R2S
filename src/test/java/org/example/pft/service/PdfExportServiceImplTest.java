@@ -35,6 +35,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -129,6 +130,27 @@ class PdfExportServiceImplTest {
             Files.deleteIfExists(targetPath);
         }
 
+        verify(reportService).showSummary(MONTH, YEAR);
+        verify(reportService).showMonthly(MONTH, YEAR);
+    }
+
+    @Test
+    void generateSummaryPdf_withValidRequest_shouldReturnPdfBytes() {
+        PdfExportRequest request = validRequest();
+        request.setIncludeChart(null);
+        request.setIncludeTopExpenses(true);
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(reportService.showSummary(MONTH, YEAR))
+                .thenReturn(summaryResponse());
+        when(reportService.showMonthly(MONTH, YEAR))
+                .thenReturn(monthlyResponse());
+
+        byte[] pdf = pdfExportService.generateSummaryPdf(request);
+
+        assertTrue(pdf.length > 0);
+        assertEquals("%PDF", new String(pdf, 0, 4));
         verify(reportService).showSummary(MONTH, YEAR);
         verify(reportService).showMonthly(MONTH, YEAR);
     }

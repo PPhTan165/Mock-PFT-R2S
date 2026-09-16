@@ -29,6 +29,7 @@ import org.example.pft.service.pdf.PdfOptionalSectionRenderer;
 import org.example.pft.service.pdf.PdfReportRenderer;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigDecimal;
@@ -74,6 +75,28 @@ public class PdfExportServiceImpl implements PdfExportService {
         response.setData(filePath.toString());
 
         return response;
+    }
+
+    @Override
+    public byte[] generateSummaryPdf(
+            PdfExportRequest request
+    ) {
+        PdfExportRequest summaryRequest = toSummaryRequest(request);
+        validateRequest(summaryRequest);
+
+        User user = currentUserHelper.getCurrentUser();
+        validateAuthenticatedUser(user);
+
+        PdfExportContext context = buildPdfExportContext(summaryRequest);
+
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            writePdfContent(outputStream, context);
+            return outputStream.toByteArray();
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (DocumentException | IOException ex) {
+            throw new RuntimeException("Could not generate PDF report", ex);
+        }
     }
 
     private PdfReportRenderer getRenderer(ReportType reportType) {
@@ -201,9 +224,18 @@ public class PdfExportServiceImpl implements PdfExportService {
             Path filePath,
             PdfExportContext context)
             throws DocumentException, IOException {
+        try (OutputStream outputStream = Files.newOutputStream(filePath)) {
+            writePdfContent(outputStream, context);
+        }
+    }
+
+    private void writePdfContent(
+            OutputStream outputStream,
+            PdfExportContext context)
+            throws DocumentException {
         Document document = new Document(PageSize.A4);
 
-        try (OutputStream outputStream = Files.newOutputStream(filePath)) {
+        try {
             PdfWriter.getInstance(document, outputStream);
             document.open();
 
@@ -221,6 +253,20 @@ public class PdfExportServiceImpl implements PdfExportService {
             }
 
         }
+    }
+
+    private PdfExportRequest toSummaryRequest(PdfExportRequest request) {
+        if (request == null) {
+            return null;
+        }
+
+        PdfExportRequest summaryRequest = new PdfExportRequest();
+        summaryRequest.setMonth(request.getMonth());
+        summaryRequest.setYear(request.getYear());
+        summaryRequest.setIncludeChart(request.getIncludeChart());
+        summaryRequest.setIncludeTopExpenses(request.getIncludeTopExpenses());
+        summaryRequest.setReportType(ReportType.SUMMARY);
+        return summaryRequest;
     }
 
     //  HEADER TABLE ====================================
