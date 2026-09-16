@@ -39,7 +39,7 @@ public class SummaryPdfRenderer implements PdfReportRenderer {
         pdfReportHelper.addSectionTitle(document,"Bang thong tin tong hop thang");
         writeSummaryTable(document,summaryData);
 
-        if(Boolean.TRUE.equals(context.request().getIncludeChart() && !isEmptySummary(summaryData))){
+        if(Boolean.TRUE.equals(context.request().getIncludeChart()) && !isEmptySummary(summaryData)){
             Image chart = chartService.createIncomeExpenseChart(summaryData);
             addChart(document,chart);
         }

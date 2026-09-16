@@ -5,4 +5,5 @@ import org.example.pft.dto.report.pdf.PdfExportRequest;
 
 public interface PdfExportService {
     ReportResponse<String> exportPDF(PdfExportRequest request);
+    byte[] generateSummaryPdf(PdfExportRequest request);
 }
