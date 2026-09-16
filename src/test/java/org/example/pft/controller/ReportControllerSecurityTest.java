@@ -1,5 +1,6 @@
 package org.example.pft.controller;
 
+import org.example.pft.dto.email.EmailExportResponse;
 import org.example.pft.dto.report.ReportResponse;
 import org.example.pft.dto.report.category.ReportCategory;
 import org.example.pft.dto.report.category.ReportCategoryData;
@@ -17,6 +18,7 @@ import org.example.pft.security.RestAccessDeniedHandler;
 import org.example.pft.security.RestAuthenticationEntityPoint;
 import org.example.pft.security.SecurityConfig;
 import org.example.pft.service.PdfExportService;
+import org.example.pft.service.ReportEmailService;
 import org.example.pft.service.ReportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,6 +67,9 @@ class ReportControllerSecurityTest {
     PdfExportService pdfExportService;
 
     @MockitoBean
+    ReportEmailService reportEmailService;
+
+    @MockitoBean
     JwtService jwtService;
 
     @MockitoBean
@@ -74,6 +79,7 @@ class ReportControllerSecurityTest {
     private ReportResponse<MonthlyData> monthlyResponse;
     private ReportResponse<SummaryData> summaryResponse;
     private ReportResponse<String> pdfResponse;
+    private EmailExportResponse emailResponse;
 
     @BeforeEach
     void setup() {
@@ -110,6 +116,11 @@ class ReportControllerSecurityTest {
         pdfResponse.setSuccess(true);
         pdfResponse.setMessage("summary report PDF generated successfully");
         pdfResponse.setData("reports/1_summary_sep_2026.pdf");
+
+        emailResponse = new EmailExportResponse(
+                true,
+                "Report sent successfully to user@example.com"
+        );
     }
 
     @Test
@@ -322,6 +333,69 @@ class ReportControllerSecurityTest {
 
         verify(pdfExportService).exportPDF(argThat(request ->
                 request.getReportType() == org.example.pft.enums.ReportType.SUMMARY
+        ));
+    }
+
+    @Test
+    void exportEmail_withoutToken_shouldReturn401() throws Exception {
+        mockMvc.perform(post("/api/reports/export/email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "month": 4,
+                                  "year": 2024,
+                                  "email": "user@example.com",
+                                  "includeChart": true,
+                                  "includeTopExpenses": true
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+
+        verify(reportEmailService, never()).sendSummaryReport(any());
+    }
+
+    @Test
+    @WithMockUser
+    void exportEmail_withInvalidRequest_shouldReturn422() throws Exception {
+        mockMvc.perform(post("/api/reports/export/email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "month": 13,
+                                  "year": 2024,
+                                  "email": "not-an-email"
+                                }
+                                """))
+                .andExpect(status().isUnprocessableContent());
+
+        verify(reportEmailService, never()).sendSummaryReport(any());
+    }
+
+    @Test
+    @WithMockUser
+    void exportEmail_withAuthenticatedUser_shouldReturn200() throws Exception {
+        when(reportEmailService.sendSummaryReport(any()))
+                .thenReturn(emailResponse);
+
+        mockMvc.perform(post("/api/reports/export/email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "month": 4,
+                                  "year": 2024,
+                                  "email": "user@example.com",
+                                  "includeChart": true,
+                                  "includeTopExpenses": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Report sent successfully to user@example.com"));
+
+        verify(reportEmailService).sendSummaryReport(argThat(request ->
+                request.getMonth() == 4
+                        && request.getYear() == 2024
+                        && "user@example.com".equals(request.getEmail())
         ));
     }
 }
