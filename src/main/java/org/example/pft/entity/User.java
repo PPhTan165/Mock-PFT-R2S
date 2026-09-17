@@ -23,6 +23,9 @@ public class User {
     private LocalDateTime lockedUntil; // Thời gian unblock
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    @Column(name = "two_factor_enabled",nullable = false)
+    private Boolean twoFactorEnabled = false;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",
