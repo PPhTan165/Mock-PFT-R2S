@@ -2,8 +2,11 @@ package org.example.pft.service;
 
 import org.example.pft.dto.auth.LoginRequest;
 import org.example.pft.dto.auth.LoginResponse;
+import org.example.pft.dto.twoFactor.ResendTwoFactorRequest;
+import org.example.pft.dto.twoFactor.VerifyTwoFactorRequest;
 import org.example.pft.entity.User;
 import org.example.pft.exception.BusinessValidationException;
+import org.example.pft.repository.RoleRepository;
 import org.example.pft.repository.UserRepository;
 import org.example.pft.security.JwtService;
 import org.example.pft.service.impl.AuthServiceImpl;
@@ -31,10 +34,16 @@ class LoginServiceImplTest {
     UserRepository userRepository;
 
     @Mock
+    RoleRepository roleRepository;
+
+    @Mock
     PasswordEncoder passwordEncoder;
 
     @Mock
     JwtService jwtService;
+
+    @Mock
+    TwoFactorChallengeService twoFactorChallengeService;
 
     @InjectMocks
     AuthServiceImpl authService;
@@ -82,6 +91,35 @@ class LoginServiceImplTest {
                 "encoded-password"
         );
         verify(jwtService).generateToken(user);
+    }
+
+    @Test
+    void login_withTwoFactorEnabled_shouldReturnChallengeWithoutToken() {
+        user.setTwoFactorEnabled(true);
+
+        when(userRepository.findByEmail("user@example.com"))
+                .thenReturn(Optional.of(user));
+
+        when(passwordEncoder.matches(
+                "123456",
+                "encoded-password"
+        )).thenReturn(true);
+
+        when(twoFactorChallengeService.createChallenge(user))
+                .thenReturn("challenge-123");
+
+        LoginResponse response = authService.login(request);
+
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+        assertEquals("Two-factor verification required", response.getMessage());
+        assertEquals("challenge-123", response.getChallengeId());
+        assertNull(response.getData());
+
+        verify(twoFactorChallengeService)
+                .createChallenge(user);
+        verify(jwtService, never())
+                .generateToken(any());
     }
 
     @Test
@@ -201,5 +239,42 @@ class LoginServiceImplTest {
 
         // Password sai thì tuyệt đối không tạo JWT
         verify(jwtService, never()).generateToken(any());
+    }
+
+    @Test
+    void verifyTwoFactor_withValidCode_shouldReturnToken() {
+        VerifyTwoFactorRequest request = new VerifyTwoFactorRequest();
+        request.setChallengeId("challenge-123");
+        request.setCode("123456");
+
+        when(twoFactorChallengeService.verifyCode("challenge-123", "123456"))
+                .thenReturn(user);
+        when(jwtService.generateToken(user))
+                .thenReturn("mock-jwt-token");
+        when(jwtService.getExpirationDateTime("mock-jwt-token"))
+                .thenReturn(LocalDateTime.of(2026, 9, 5, 15, 0));
+
+        LoginResponse response = authService.verifyTwoFactor(request);
+
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+        assertEquals("Login successful", response.getMessage());
+        assertNull(response.getChallengeId());
+        assertEquals("mock-jwt-token", response.getData().getAccessToken());
+
+        verify(twoFactorChallengeService)
+                .verifyCode("challenge-123", "123456");
+        verify(jwtService).generateToken(user);
+    }
+
+    @Test
+    void resendTwoFactorCode_withValidChallenge_shouldDelegateToTwoFactorService() {
+        ResendTwoFactorRequest request = new ResendTwoFactorRequest();
+        request.setChallengeId("challenge-123");
+
+        authService.resendTwoFactorCode(request);
+
+        verify(twoFactorChallengeService)
+                .resendCode("challenge-123");
     }
 }

@@ -3,6 +3,8 @@ package org.example.pft.controller;
 import org.example.pft.dto.auth.LoginData;
 import org.example.pft.dto.auth.LoginRequest;
 import org.example.pft.dto.auth.LoginResponse;
+import org.example.pft.dto.twoFactor.ResendTwoFactorRequest;
+import org.example.pft.dto.twoFactor.VerifyTwoFactorRequest;
 import org.example.pft.security.CustomUserDetailsService;
 import org.example.pft.security.JwtAuthenticationFilter;
 import org.example.pft.security.JwtService;
@@ -129,5 +131,68 @@ class LoginControllerSecurityTest {
 
         verify(authService, never())
                 .login(any(LoginRequest.class));
+    }
+
+    @Test
+    void verifyTwoFactor_withValidRequest_shouldReturn200() throws Exception {
+        when(authService.verifyTwoFactor(any(VerifyTwoFactorRequest.class)))
+                .thenReturn(loginResponse);
+
+        mockMvc.perform(post("/api/auth/2fa/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "challengeId": "challenge-123",
+                    "code": "123456"
+                }
+                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accessToken").value("mock-jwt-token"));
+
+        verify(authService)
+                .verifyTwoFactor(any(VerifyTwoFactorRequest.class));
+    }
+
+    @Test
+    void verifyTwoFactor_withoutCode_shouldReturn422() throws Exception {
+        mockMvc.perform(post("/api/auth/2fa/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "challengeId": "challenge-123"
+                }
+                """))
+                .andExpect(status().isUnprocessableContent());
+
+        verify(authService, never())
+                .verifyTwoFactor(any(VerifyTwoFactorRequest.class));
+    }
+
+    @Test
+    void resendTwoFactorCode_withValidRequest_shouldReturn204() throws Exception {
+        mockMvc.perform(post("/api/auth/2fa/resend")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "challengeId": "challenge-123"
+                }
+                """))
+                .andExpect(status().isNoContent());
+
+        verify(authService)
+                .resendTwoFactorCode(any(ResendTwoFactorRequest.class));
+    }
+
+    @Test
+    void resendTwoFactorCode_withoutChallengeId_shouldReturn422() throws Exception {
+        mockMvc.perform(post("/api/auth/2fa/resend")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {}
+                """))
+                .andExpect(status().isUnprocessableContent());
+
+        verify(authService, never())
+                .resendTwoFactorCode(any(ResendTwoFactorRequest.class));
     }
 }
