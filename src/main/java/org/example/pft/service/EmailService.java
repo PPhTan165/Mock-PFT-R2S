@@ -8,4 +8,6 @@ public interface EmailService {
             byte[] attachment,
             String fileName
     );
+
+    void sendOtpMail(String to, String otpCode);
 }

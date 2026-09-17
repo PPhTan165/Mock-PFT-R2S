@@ -7,6 +7,10 @@ public class EmailSendException extends BusinessException {
         super(message, cause);
     }
 
+    public EmailSendException(String message) {
+        super(message);
+    }
+
     @Override
     public HttpStatus getStatus() {
         return HttpStatus.INTERNAL_SERVER_ERROR;
