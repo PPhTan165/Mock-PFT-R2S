@@ -46,6 +46,9 @@ public class RegisterServiceImplTest {
     @Mock
     JwtService jwtService;
 
+    @Mock
+    NotificationService notificationService;
+
     @InjectMocks
     AuthServiceImpl authService;
 
@@ -98,6 +101,7 @@ public class RegisterServiceImplTest {
         assertTrue(userToSave.getRoles().contains(userRole));
 
         verify(passwordEncoder).encode("password123");
+        verify(notificationService).createNotification(userToSave);
     }
 
     @Test
@@ -113,6 +117,7 @@ public class RegisterServiceImplTest {
         verify(roleRepository, never()).findByName("USER");
         verify(passwordEncoder, never()).encode(any());
         verify(userRepository, never()).save(any());
+        verify(notificationService, never()).createNotification(any(User.class));
     }
 
     @Test
@@ -129,5 +134,6 @@ public class RegisterServiceImplTest {
 
         verify(passwordEncoder, never()).encode(any());
         verify(userRepository, never()).save(any());
+        verify(notificationService, never()).createNotification(any(User.class));
     }
 }

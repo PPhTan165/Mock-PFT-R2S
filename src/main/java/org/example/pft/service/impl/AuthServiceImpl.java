@@ -13,6 +13,7 @@ import org.example.pft.repository.RoleRepository;
 import org.example.pft.repository.UserRepository;
 import org.example.pft.security.JwtService;
 import org.example.pft.service.AuthService;
+import org.example.pft.service.NotificationService;
 import org.example.pft.service.TwoFactorChallengeService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,7 +33,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder encoder;
     private final JwtService jwtService;
     private final TwoFactorChallengeService twoFactorService;
-
+    private final NotificationService notificationService;
 
     @Override
     public LoginResponse login(LoginRequest request) {
@@ -91,6 +92,7 @@ public class AuthServiceImpl implements AuthService {
         user.setRoles(Set.of(userRole));
 
         User savedUser = userRepository.save(user);
+        notificationService.createNotification(savedUser);
 
         RegisterData data = new RegisterData(
                 savedUser.getId(),
