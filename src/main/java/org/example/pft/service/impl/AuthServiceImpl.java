@@ -1,6 +1,9 @@
 package org.example.pft.service.impl;
 
+import lombok.AllArgsConstructor;
 import org.example.pft.dto.auth.*;
+import org.example.pft.dto.twoFactor.ResendTwoFactorRequest;
+import org.example.pft.dto.twoFactor.VerifyTwoFactorRequest;
 import org.example.pft.entity.Role;
 import org.example.pft.entity.User;
 import org.example.pft.exception.BusinessConflictException;
@@ -10,6 +13,7 @@ import org.example.pft.repository.RoleRepository;
 import org.example.pft.repository.UserRepository;
 import org.example.pft.security.JwtService;
 import org.example.pft.service.AuthService;
+import org.example.pft.service.TwoFactorChallengeService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +22,7 @@ import java.time.LocalDateTime;
 import java.util.Set;
 
 @Service
-
+@AllArgsConstructor
 public class AuthServiceImpl implements AuthService {
     private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5; // giới hạn số lần thất bại
     private static final int LOGIN_LOCK_MINUTES = 30; // Thời gian bị lock
@@ -27,45 +31,57 @@ public class AuthServiceImpl implements AuthService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder encoder;
     private final JwtService jwtService;
+    private final TwoFactorChallengeService twoFactorService;
 
-    public AuthServiceImpl(UserRepository userRepository, RoleRepository roleRepository, PasswordEncoder encoder, JwtService jwtService) {
-        this.userRepository = userRepository;
-        this.roleRepository = roleRepository;
-        this.encoder = encoder;
-        this.jwtService = jwtService;
-    }
 
     @Override
-    public LoginResponse login(LoginRequest request){
+    public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(()-> new BusinessValidationException("Invalid email or password"));
+                .orElseThrow(() -> new BusinessValidationException("Invalid email or password"));
 
         checkLoginLock(user);
 
-        if(!encoder.matches(request.getPassword(),user.getPassword())){
+        if (!encoder.matches(request.getPassword(), user.getPassword())) {
             throw handleFailedLogin(user);
         }
 
         resetLoginFailure(user);
 
-        String accessToken = jwtService.generateToken(user);
-        LocalDateTime exp = jwtService.getExpirationDateTime(accessToken);
+        if (Boolean.TRUE.equals(user.getTwoFactorEnabled())) {
+            String challengeId = twoFactorService.createChallenge(user);
 
-        LoginData data = new LoginData(accessToken,exp);
+            return new LoginResponse(
+                    true,
+                    "Two-factor verification required",
+                    challengeId,
+                    null
+            );
+        }else {
+            String accessToken = jwtService.generateToken(user);
+            LocalDateTime exp = jwtService.getExpirationDateTime(accessToken);
 
-        return new LoginResponse(true,"Login successful",data);
+            LoginData data = new LoginData(accessToken, exp);
+
+            return new LoginResponse(
+                    true,
+                    "Login successful",
+                    null,
+                    data
+            );
+        }
+
 
     }
 
     @Override
-    public RegisterResponse register(RegisterRequest request){
+    public RegisterResponse register(RegisterRequest request) {
 
-        if(userRepository.existsByEmail(request.getEmail())){
+        if (userRepository.existsByEmail(request.getEmail())) {
             throw new BusinessConflictException("Email is already registered");
         }
 
         Role userRole = roleRepository.findByName("USER")
-                .orElseThrow(()-> new ResourceNotFoundException("Default role USER not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Default role USER not found"));
 
         User user = new User();
         user.setEmail(request.getEmail());
@@ -74,7 +90,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPassword(encoder.encode(request.getPassword()));
         user.setRoles(Set.of(userRole));
 
-       User savedUser = userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
         RegisterData data = new RegisterData(
                 savedUser.getId(),
@@ -82,7 +98,28 @@ public class AuthServiceImpl implements AuthService {
                 savedUser.getEmail()
         );
 
-        return new RegisterResponse(true,"Registration successful",data);
+        return new RegisterResponse(true, "Registration successful", data);
+    }
+
+    @Override
+    public LoginResponse verifyTwoFactor(VerifyTwoFactorRequest request) {
+        User user = twoFactorService.verifyCode(request.getChallengeId(), request.getCode());
+
+        String accessToken = jwtService.generateToken(user);
+        LocalDateTime exp = jwtService.getExpirationDateTime(accessToken);
+
+        LoginData data = new LoginData(accessToken, exp);
+        return new LoginResponse(
+                true,
+                "Login successful",
+                null,
+                data
+        );
+    }
+
+    @Override
+    public void resendTwoFactorCode(ResendTwoFactorRequest request) {
+        twoFactorService.resendCode(request.getChallengeId());
     }
 
     //Kiem tra user con bi lock khong
