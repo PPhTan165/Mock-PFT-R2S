@@ -1,5 +1,6 @@
 package org.example.pft.service.impl;
 
+import org.springframework.transaction.annotation.Transactional;
 import lombok.AllArgsConstructor;
 import org.example.pft.dto.auth.*;
 import org.example.pft.dto.twoFactor.ResendTwoFactorRequest;
@@ -35,6 +36,8 @@ public class AuthServiceImpl implements AuthService {
     private final TwoFactorChallengeService twoFactorService;
     private final NotificationService notificationService;
 
+    //Tránh rollback làm fail login attempt không tăng trong DB
+    @Transactional(noRollbackFor = BusinessValidationException.class)
     @Override
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
