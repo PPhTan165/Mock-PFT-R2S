@@ -1,6 +1,6 @@
 package org.example.pft.service.impl;
 
-import jakarta.transaction.Transactional;
+
 import lombok.AllArgsConstructor;
 import org.example.pft.dto.budget.*;
 import org.example.pft.entity.Budget;
@@ -16,6 +16,7 @@ import org.example.pft.repository.CategoryIconRepository;
 import org.example.pft.repository.CategoryRepository;
 import org.example.pft.service.BudgetService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -70,6 +71,7 @@ public class BudgetServiceImpl implements BudgetService {
     }
 
     @Override
+    @Transactional
     public void delete(Long id){
         Budget budget = budgetRepository.findById(id)
                 .orElseThrow(()-> new ResourceNotFoundException("Budget not found"));
