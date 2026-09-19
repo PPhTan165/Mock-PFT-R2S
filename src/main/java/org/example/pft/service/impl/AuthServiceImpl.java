@@ -1,5 +1,6 @@
 package org.example.pft.service.impl;
 
+import jakarta.transaction.Transactional;
 import org.example.pft.dto.auth.*;
 import org.example.pft.entity.Role;
 import org.example.pft.entity.User;
@@ -57,6 +58,7 @@ public class AuthServiceImpl implements AuthService {
 
     }
 
+    @Transactional
     @Override
     public RegisterResponse register(RegisterRequest request){
 
