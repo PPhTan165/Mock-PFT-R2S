@@ -18,6 +18,7 @@ import org.example.pft.service.NotificationService;
 import org.example.pft.service.TwoFactorChallengeService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -106,6 +107,7 @@ public class AuthServiceImpl implements AuthService {
         return new RegisterResponse(true, "Registration successful", data);
     }
 
+    @Transactional(noRollbackFor = BusinessValidationException.class)
     @Override
     public LoginResponse verifyTwoFactor(VerifyTwoFactorRequest request) {
         User user = twoFactorService.verifyCode(request.getChallengeId(), request.getCode());
