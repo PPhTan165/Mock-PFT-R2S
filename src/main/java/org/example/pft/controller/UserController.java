@@ -2,7 +2,7 @@ package org.example.pft.controller;
 
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
-import org.example.pft.dto.user.ProfileUserUpdateRequest;
+import org.example.pft.dto.user.UpdateProfileRequest;
 import org.example.pft.dto.user.UserResponse;
 import org.example.pft.service.UserService;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +21,7 @@ public class UserController {
     @PreAuthorize("hasRole('USER')")
     @PutMapping("/profile")
     public ResponseEntity<UserResponse> updateProfile(
-            @RequestBody @Valid ProfileUserUpdateRequest request){
+            @RequestBody @Valid UpdateProfileRequest request){
         return ResponseEntity.ok().body(userService.updateProfile(request));
     }
 }

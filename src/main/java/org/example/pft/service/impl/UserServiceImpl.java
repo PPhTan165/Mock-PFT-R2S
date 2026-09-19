@@ -2,7 +2,7 @@ package org.example.pft.service.impl;
 
 import jakarta.transaction.Transactional;
 import lombok.AllArgsConstructor;
-import org.example.pft.dto.user.ProfileUserUpdateRequest;
+import org.example.pft.dto.user.UpdateProfileRequest;
 import org.example.pft.dto.user.UserData;
 import org.example.pft.dto.user.UserResponse;
 import org.example.pft.entity.User;
@@ -19,7 +19,7 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     @Override
-    public UserResponse updateProfile(ProfileUserUpdateRequest request) {
+    public UserResponse updateProfile(UpdateProfileRequest request) {
         User user = helper.getCurrentUser();
 
         user.setFullName(request.getFullName());

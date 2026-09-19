@@ -1,6 +1,6 @@
 package org.example.pft.service;
 
-import org.example.pft.dto.user.ProfileUserUpdateRequest;
+import org.example.pft.dto.user.UpdateProfileRequest;
 import org.example.pft.dto.user.UserData;
 import org.example.pft.dto.user.UserResponse;
 import org.example.pft.entity.User;
@@ -47,7 +47,7 @@ class UserServiceImplTest {
 
     @Test
     void updateProfile_withValidRequest_shouldSaveUserAndReturnResponse() {
-        ProfileUserUpdateRequest request = createRequest(
+        UpdateProfileRequest request = createRequest(
                 "Updated User",
                 "new-avatar.png",
                 true
@@ -79,7 +79,7 @@ class UserServiceImplTest {
 
     @Test
     void updateProfile_withNullAvatar_shouldClearAvatar() {
-        ProfileUserUpdateRequest request = createRequest(
+        UpdateProfileRequest request = createRequest(
                 "Updated User",
                 null,
                 true
@@ -100,7 +100,7 @@ class UserServiceImplTest {
 
     @Test
     void updateProfile_withEmptyAvatar_shouldClearAvatar() {
-        ProfileUserUpdateRequest request = createRequest(
+        UpdateProfileRequest request = createRequest(
                 "Updated User",
                 "",
                 false
@@ -121,11 +121,11 @@ class UserServiceImplTest {
         assertEquals(false, userCaptor.getValue().getTwoFactorEnabled());
     }
 
-    private ProfileUserUpdateRequest createRequest(
+    private UpdateProfileRequest createRequest(
             String fullName,
             String avatar,
             Boolean twoFactorEnabled) {
-        ProfileUserUpdateRequest request = new ProfileUserUpdateRequest();
+        UpdateProfileRequest request = new UpdateProfileRequest();
         request.setFullName(fullName);
         request.setAvatar(avatar);
         request.setTwoFactorEnabled(twoFactorEnabled);

@@ -1,6 +1,6 @@
 package org.example.pft.controller;
 
-import org.example.pft.dto.user.ProfileUserUpdateRequest;
+import org.example.pft.dto.user.UpdateProfileRequest;
 import org.example.pft.dto.user.UserData;
 import org.example.pft.dto.user.UserResponse;
 import org.example.pft.security.CustomUserDetailsService;
@@ -85,13 +85,13 @@ class UserControllerSecurityTest {
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.path").value("/api/user/profile"));
 
-        verify(userService, never()).updateProfile(any(ProfileUserUpdateRequest.class));
+        verify(userService, never()).updateProfile(any(UpdateProfileRequest.class));
     }
 
     @Test
     @WithMockUser
     void updateProfile_withAuthenticatedUser_shouldReturn200() throws Exception {
-        when(userService.updateProfile(any(ProfileUserUpdateRequest.class)))
+        when(userService.updateProfile(any(UpdateProfileRequest.class)))
                 .thenReturn(userResponse);
 
         mockMvc.perform(put("/api/user/profile")
@@ -112,8 +112,8 @@ class UserControllerSecurityTest {
                 .andExpect(jsonPath("$.data.avatar").value("new-avatar.png"))
                 .andExpect(jsonPath("$.data.twoFactorEnabled").value(true));
 
-        ArgumentCaptor<ProfileUserUpdateRequest> requestCaptor =
-                ArgumentCaptor.forClass(ProfileUserUpdateRequest.class);
+        ArgumentCaptor<UpdateProfileRequest> requestCaptor =
+                ArgumentCaptor.forClass(UpdateProfileRequest.class);
         verify(userService).updateProfile(requestCaptor.capture());
 
         assertEquals("Updated User", requestCaptor.getValue().getFullName());
@@ -136,7 +136,7 @@ class UserControllerSecurityTest {
                 )
         );
 
-        when(userService.updateProfile(any(ProfileUserUpdateRequest.class)))
+        when(userService.updateProfile(any(UpdateProfileRequest.class)))
                 .thenReturn(responseWithoutAvatar);
 
         mockMvc.perform(put("/api/user/profile")
@@ -152,8 +152,8 @@ class UserControllerSecurityTest {
                 .andExpect(jsonPath("$.data.avatar").doesNotExist())
                 .andExpect(jsonPath("$.data.twoFactorEnabled").value(false));
 
-        ArgumentCaptor<ProfileUserUpdateRequest> requestCaptor =
-                ArgumentCaptor.forClass(ProfileUserUpdateRequest.class);
+        ArgumentCaptor<UpdateProfileRequest> requestCaptor =
+                ArgumentCaptor.forClass(UpdateProfileRequest.class);
         verify(userService).updateProfile(requestCaptor.capture());
 
         assertEquals("Updated User", requestCaptor.getValue().getFullName());
@@ -178,7 +178,7 @@ class UserControllerSecurityTest {
                 .andExpect(jsonPath("$.errors[0].field").value("fullName"))
                 .andExpect(jsonPath("$.errors[0].message").value("Full name is required"));
 
-        verify(userService, never()).updateProfile(any(ProfileUserUpdateRequest.class));
+        verify(userService, never()).updateProfile(any(UpdateProfileRequest.class));
     }
 
     @Test
@@ -198,7 +198,7 @@ class UserControllerSecurityTest {
                 .andExpect(jsonPath("$.errors[0].field").value("twoFactorEnabled"))
                 .andExpect(jsonPath("$.errors[0].message").value("Two factor must be true or false"));
 
-        verify(userService, never()).updateProfile(any(ProfileUserUpdateRequest.class));
+        verify(userService, never()).updateProfile(any(UpdateProfileRequest.class));
     }
 
     @Test
@@ -219,6 +219,6 @@ class UserControllerSecurityTest {
                 .andExpect(jsonPath("$.errors[0].field").value("twoFactorEnabled"))
                 .andExpect(jsonPath("$.errors[0].message").value("Must be true or false"));
 
-        verify(userService, never()).updateProfile(any(ProfileUserUpdateRequest.class));
+        verify(userService, never()).updateProfile(any(UpdateProfileRequest.class));
     }
 }
