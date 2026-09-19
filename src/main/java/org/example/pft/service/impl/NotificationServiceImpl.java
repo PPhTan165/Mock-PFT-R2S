@@ -11,6 +11,7 @@ import org.example.pft.helper.CurrentUserHelper;
 import org.example.pft.repository.NotificationRepository;
 import org.example.pft.service.NotificationService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -33,6 +34,7 @@ public class NotificationServiceImpl implements NotificationService {
         );
     }
 
+    @Transactional
     @Override
     public NotificationResponse updateNotificationSetting(NotificationUpdateRequest request) {
         User user = currentUserHelper.getCurrentUser();
@@ -52,6 +54,7 @@ public class NotificationServiceImpl implements NotificationService {
         );
     }
 
+    @Transactional
     @Override
     public NotificationResponse createNotification(User user) {
         Notification notification = new Notification();
