@@ -1,6 +1,5 @@
 package org.example.pft.service.impl;
 
-import jakarta.transaction.Transactional;
 import org.example.pft.dto.auth.*;
 import org.example.pft.entity.Role;
 import org.example.pft.entity.User;
@@ -13,6 +12,7 @@ import org.example.pft.security.JwtService;
 import org.example.pft.service.AuthService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
