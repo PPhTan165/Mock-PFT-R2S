@@ -9,6 +9,7 @@ import org.example.pft.repository.TwoFactorChallengeRepository;
 import org.example.pft.service.EmailService;
 import org.example.pft.service.TwoFactorChallengeService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -29,6 +30,7 @@ public class TwoFactorChallengeImpl implements TwoFactorChallengeService {
 
     private final SecureRandom secureRandom = new SecureRandom();
 
+    @Transactional
     @Override
     public String createChallenge(User user) {
         LocalDateTime now = LocalDateTime.now();
@@ -78,6 +80,7 @@ public class TwoFactorChallengeImpl implements TwoFactorChallengeService {
         return challengeId;
     }
 
+    @Transactional
     @Override
     public void resendCode(String challengeId) {
         TwoFactorChallenge challenge = twoFactorChallengeRepository.findByChallengeId(challengeId)
@@ -121,6 +124,7 @@ public class TwoFactorChallengeImpl implements TwoFactorChallengeService {
 
     }
 
+    @Transactional(noRollbackFor = BusinessValidationException.class)
     @Override
     public User verifyCode(String challengeId, String code) {
         TwoFactorChallenge challenge = twoFactorChallengeRepository.findByChallengeId(challengeId)
