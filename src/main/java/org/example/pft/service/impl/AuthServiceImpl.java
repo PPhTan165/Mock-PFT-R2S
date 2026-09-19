@@ -78,6 +78,7 @@ public class AuthServiceImpl implements AuthService {
 
     }
 
+    @Transactional
     @Override
     public RegisterResponse register(RegisterRequest request) {
 
