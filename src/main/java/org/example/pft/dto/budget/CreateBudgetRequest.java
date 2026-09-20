@@ -16,6 +16,7 @@ public class CreateBudgetRequest {
     @Min(value = 1, message = "Amount must be greater than 0")
     private BigDecimal amount;
 
+    @NotNull(message = "Month is required")
     @Min(value = 1, message = "Month must be in range from 1-12")
     @Max(value = 12, message = "Month must be in range from 1-12")
     private Integer month;
