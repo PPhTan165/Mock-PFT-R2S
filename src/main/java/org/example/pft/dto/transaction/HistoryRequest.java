@@ -3,6 +3,7 @@ package org.example.pft.dto.transaction;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.example.pft.enums.CategoryType;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -24,9 +25,11 @@ public class HistoryRequest {
     @NotNull(message = "Type is required INCOME or EXPENSE")
     private CategoryType type;
 
+    @NotNull(message = "Page is required")
     @Min(value = 1, message = "Page must be greater than or equal to 1")
     private Integer page = 1;
 
+    @NotNull(message = "Size is required")
     @Min(value = 1, message = "Size must be greater than or equal to 1")
     private Integer size = 10;
 
