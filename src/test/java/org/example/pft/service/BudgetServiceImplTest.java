@@ -104,7 +104,7 @@ class BudgetServiceImplTest {
                 .thenReturn(Optional.of(foodCategory));
         when(currentUserHelper.getCurrentUser())
                 .thenReturn(user);
-        when(budgetRepository.findByCategoryAndMonthAndYear(foodCategory, (byte) 9, (short) 2026))
+        when(budgetRepository.findByUserAndCategoryAndMonthAndYear(user, foodCategory, (byte) 9, (short) 2026))
                 .thenReturn(Optional.empty());
         when(budgetRepository.save(any(Budget.class)))
                 .thenAnswer(invocation -> {
@@ -133,7 +133,7 @@ class BudgetServiceImplTest {
                 .thenReturn(Optional.of(foodCategory));
         when(currentUserHelper.getCurrentUser())
                 .thenReturn(user);
-        when(budgetRepository.findByCategoryAndMonthAndYear(foodCategory, (byte) 9, (short) 2026))
+        when(budgetRepository.findByUserAndCategoryAndMonthAndYear(user, foodCategory, (byte) 9, (short) 2026))
                 .thenReturn(Optional.of(budget));
         when(budgetRepository.save(budget))
                 .thenReturn(budget);
@@ -166,6 +166,32 @@ class BudgetServiceImplTest {
     }
 
     @Test
+    void create_withCategoryOwnedByAnotherUser_shouldThrowException() {
+        CreateBudgetRequest request = createBudgetRequest(21L);
+        User anotherUser = new User();
+        anotherUser.setId(2L);
+
+        Category anotherUserCategory = new Category();
+        anotherUserCategory.setId(21L);
+        anotherUserCategory.setUser(anotherUser);
+        anotherUserCategory.setCategoryIcon(foodIcon);
+        anotherUserCategory.setType(CategoryType.EXPENSE);
+
+        when(categoryRepository.findById(21L))
+                .thenReturn(Optional.of(anotherUserCategory));
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+
+        assertThrows(
+                ResourceNotFoundException.class,
+                () -> budgetService.create(request)
+        );
+
+        verify(budgetRepository, never()).findByUserAndCategoryAndMonthAndYear(any(), any(), any(), any());
+        verify(budgetRepository, never()).save(any());
+    }
+
+    @Test
     void create_whenCategoryNotFound_shouldThrowException() {
         CreateBudgetRequest request = createBudgetRequest(99L);
 
@@ -185,7 +211,9 @@ class BudgetServiceImplTest {
         UpdateBudgetRequest request = new UpdateBudgetRequest();
         ReflectionTestUtils.setField(request, "amount", new BigDecimal("1500000"));
 
-        when(budgetRepository.findById(200L))
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(budgetRepository.findByIdAndUser(200L, user))
                 .thenReturn(Optional.of(budget));
         when(budgetRepository.save(budget))
                 .thenReturn(budget);
@@ -208,7 +236,9 @@ class BudgetServiceImplTest {
         UpdateBudgetRequest request = new UpdateBudgetRequest();
         ReflectionTestUtils.setField(request, "amount", new BigDecimal("1500000"));
 
-        when(budgetRepository.findById(99L))
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(budgetRepository.findByIdAndUser(99L, user))
                 .thenReturn(Optional.empty());
 
         assertThrows(
@@ -221,7 +251,9 @@ class BudgetServiceImplTest {
 
     @Test
     void delete_withExistingBudget_shouldDeleteBudget() {
-        when(budgetRepository.findById(200L))
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(budgetRepository.findByIdAndUser(200L, user))
                 .thenReturn(Optional.of(budget));
 
         budgetService.delete(200L);
@@ -231,7 +263,9 @@ class BudgetServiceImplTest {
 
     @Test
     void delete_whenBudgetNotFound_shouldThrowException() {
-        when(budgetRepository.findById(99L))
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(budgetRepository.findByIdAndUser(99L, user))
                 .thenReturn(Optional.empty());
 
         assertThrows(
@@ -248,7 +282,9 @@ class BudgetServiceImplTest {
         request.setMonth(9);
         request.setYear(2026);
 
-        when(budgetRepository.findByMonthAndYear((byte) 9, (short) 2026))
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(budgetRepository.findByUserAndMonthAndYear(user, (byte) 9, (short) 2026))
                 .thenReturn(List.of(budget));
         when(categoryRepository.findById(20L))
                 .thenReturn(Optional.of(foodCategory));
@@ -261,7 +297,7 @@ class BudgetServiceImplTest {
         assertEquals(200L, response.getData().get(0).getId());
         assertEquals(20L, response.getData().get(0).getCategory().getId());
 
-        verify(budgetRepository).findByMonthAndYear((byte) 9, (short) 2026);
+        verify(budgetRepository).findByUserAndMonthAndYear(user, (byte) 9, (short) 2026);
     }
 
     private CreateBudgetRequest createBudgetRequest(Long categoryId) {
