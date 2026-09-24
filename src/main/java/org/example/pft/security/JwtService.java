@@ -19,6 +19,8 @@ import java.util.*;
 
 @Service
 public class JwtService {
+    private static final int MIN_SECRET_BYTES = 32;
+
     private final SecretKey signingKey;
     private final long expirationSeconds;
     private final String issuer;
@@ -27,9 +29,28 @@ public class JwtService {
            @Value("${app.jwt.secret}") String secret,
            @Value("${app.jwt.expiration-seconds:3600}") long expirationSeconds,
            @Value("${app.jwt.issuer:api}") String issuer) {
-        this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        this.signingKey = createSigningKey(secret);
         this.expirationSeconds = expirationSeconds;
         this.issuer = issuer;
+    }
+
+    private SecretKey createSigningKey(String secret) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("app.jwt.secret must be provided via SECRET_KEY");
+        }
+
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secret);
+        } catch (RuntimeException ex) {
+            throw new IllegalStateException("app.jwt.secret must be Base64 encoded", ex);
+        }
+
+        if (keyBytes.length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException("app.jwt.secret must decode to at least 32 bytes");
+        }
+
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 
     public String generateToken(User user){
