@@ -88,7 +88,7 @@ class TransactionServiceImplTest {
     void create_withValidRequest_shouldSaveTransactionAndReturnResponse() {
         when(currentUserHelper.getCurrentUser())
                 .thenReturn(user);
-        when(categoryRepository.findById(20L))
+        when(categoryRepository.findByIdAndUser(20L, user))
                 .thenReturn(Optional.of(foodCategory));
         when(transactionRepository.save(any(Transaction.class)))
                 .thenAnswer(invocation -> {
@@ -115,14 +115,14 @@ class TransactionServiceImplTest {
         assertSame(foodCategory, savedTransaction.getCategory());
 
         verify(currentUserHelper).getCurrentUser();
-        verify(categoryRepository).findById(20L);
+        verify(categoryRepository).findByIdAndUser(20L, user);
     }
 
     @Test
     void create_whenCategoryNotFound_shouldThrowException() {
         when(currentUserHelper.getCurrentUser())
                 .thenReturn(user);
-        when(categoryRepository.findById(20L))
+        when(categoryRepository.findByIdAndUser(20L, user))
                 .thenReturn(Optional.empty());
 
         assertThrows(
@@ -130,6 +130,23 @@ class TransactionServiceImplTest {
                 () -> transactionService.create(transactionRequest)
         );
 
+        verify(transactionRepository, never()).save(any());
+    }
+
+    @Test
+    void create_withCategoryOwnedByAnotherUser_shouldThrowException() {
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(categoryRepository.findByIdAndUser(20L, user))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                ResourceNotFoundException.class,
+                () -> transactionService.create(transactionRequest)
+        );
+
+        verify(currentUserHelper).getCurrentUser();
+        verify(categoryRepository).findByIdAndUser(20L, user);
         verify(transactionRepository, never()).save(any());
     }
 
