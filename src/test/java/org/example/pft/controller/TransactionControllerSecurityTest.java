@@ -275,6 +275,21 @@ class TransactionControllerSecurityTest {
 
     @Test
     @WithMockUser
+    void showHistory_withSizeGreaterThanMax_shouldReturn422() throws Exception {
+        mockMvc.perform(get("/api/transactions/history")
+                        .param("startDate", "2026-09-01")
+                        .param("endDate", "2026-09-30")
+                        .param("type", "EXPENSE")
+                        .param("size", "21"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+
+        verify(transactionService, never()).showHistory(any(HistoryRequest.class));
+    }
+
+    @Test
+    @WithMockUser
     void showHistory_whenCategoryNotFound_shouldReturn404() throws Exception {
         when(transactionService.showHistory(any(HistoryRequest.class)))
                 .thenThrow(new ResourceNotFoundException("Category not found"));

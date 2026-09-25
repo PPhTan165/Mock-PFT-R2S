@@ -236,6 +236,37 @@ class TransactionServiceImplTest {
     }
 
     @Test
+    void showHistory_withOversizedPageSize_shouldCapPageSizeServerSide() {
+        HistoryRequest request = createHistoryRequest(null, 1, HistoryRequest.MAX_SIZE + 1);
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(transactionRepository.showHistory(
+                eq(1L),
+                eq(LocalDate.of(2026, 9, 1)),
+                eq(LocalDate.of(2026, 9, 30)),
+                eq(null),
+                eq(CategoryType.EXPENSE),
+                any(Pageable.class)
+        )).thenReturn(List.of());
+
+        TransactionResponse<List<HistoryData>> response = transactionService.showHistory(request);
+
+        assertTrue(response.isSuccess());
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(transactionRepository).showHistory(
+                eq(1L),
+                eq(LocalDate.of(2026, 9, 1)),
+                eq(LocalDate.of(2026, 9, 30)),
+                eq(null),
+                eq(CategoryType.EXPENSE),
+                pageableCaptor.capture()
+        );
+        assertEquals(HistoryRequest.MAX_SIZE, pageableCaptor.getValue().getPageSize());
+    }
+
+    @Test
     void showHistory_whenCategoryFilterNotFound_shouldThrowException() {
         HistoryRequest request = createHistoryRequest(99L, 1, 10);
 
