@@ -1,14 +1,13 @@
 package org.example.pft;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-
+@SpringBootTest
 class PftApplicationTests {
 
     @Test
-    void applicationClassLoads() {
-        assertDoesNotThrow(() -> Class.forName(PftApplication.class.getName()));
+    void contextLoads() {
     }
 
 }
