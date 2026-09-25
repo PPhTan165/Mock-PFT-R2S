@@ -88,7 +88,10 @@ public class TransactionServiceImpl implements TransactionService {
                     .orElseThrow(()-> new ResourceNotFoundException("Category not found"));
         }
 
-        Pageable pageable = PageRequest.of(request.getPage() - 1, request.getSize());
+        Pageable pageable = PageRequest.of(
+                resolvePage(request.getPage()) - 1,
+                resolveSize(request.getSize())
+        );
 
         List<HistoryData> historyDataList = transactionRepository
                 .showHistory(
@@ -100,5 +103,21 @@ public class TransactionServiceImpl implements TransactionService {
                         pageable);
 
         return successResponse(historyDataList,"Transaction history fetched successfully");
+    }
+
+    private int resolvePage(Integer page) {
+        if (page == null || page < HistoryRequest.DEFAULT_PAGE) {
+            return HistoryRequest.DEFAULT_PAGE;
+        }
+
+        return page;
+    }
+
+    private int resolveSize(Integer size) {
+        if (size == null || size < 1) {
+            return HistoryRequest.DEFAULT_SIZE;
+        }
+
+        return Math.min(size, HistoryRequest.MAX_SIZE);
     }
 }
