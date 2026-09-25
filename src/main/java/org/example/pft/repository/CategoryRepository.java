@@ -16,9 +16,8 @@ import java.util.Optional;
 public interface CategoryRepository extends JpaRepository<Category, Long> {
     List<Category> findAllByTypeAndUser(CategoryType type,User user);
     List<Category> findAllByUser(User user);
-    Optional<Category> findByIdAndType(Long id,CategoryType type);
     boolean existsByUserAndCategoryIcon_CategoryName(User user, String categoryName);
-
+    Optional<Category> findByIdAndUser(Long id, User user);
     @Query("""
             select new org.example.pft.dto.report.category.ReportCategory(
                 ci.categoryName,

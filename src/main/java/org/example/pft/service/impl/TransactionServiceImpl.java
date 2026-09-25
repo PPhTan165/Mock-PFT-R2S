@@ -59,9 +59,9 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransactionResponse<CreateTransactionData> create(TransactionRequest request){
-        User user = currentUserHelper.getCurrentUser();
+        User currentUser = currentUserHelper.getCurrentUser();
 
-        Category category = categoryRepository.findById(request.getCategoryId())
+        Category category = categoryRepository.findByIdAndUser(request.getCategoryId(),currentUser)
                 .orElseThrow(()-> new ResourceNotFoundException("Category not found"));
 
         Transaction data = new Transaction();
@@ -69,7 +69,7 @@ public class TransactionServiceImpl implements TransactionService {
         data.setNote(request.getNote());
         data.setDate(request.getDate());
         data.setCategory(category);
-        data.setUser(user);
+        data.setUser(currentUser);
 
         Transaction saved = transactionRepository.save(data);
         CreateTransactionData resData = mapToCreateTransaction(saved);
