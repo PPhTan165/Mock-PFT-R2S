@@ -71,6 +71,7 @@ public interface TransactionRepository extends JpaRepository<Transaction,Long> {
             from Transaction t
             join t.category c
             where t.user.id = :userId
+              and c.user.id = :userId
               and month(t.date) = :month
               and year(t.date) = :year
               and c.type = :type
@@ -121,6 +122,7 @@ public interface TransactionRepository extends JpaRepository<Transaction,Long> {
             join t.category c
             join c.categoryIcon ci
             where t.user.id = :userId
+              and c.user.id = :userId
               and month(t.date) = :month
               and year(t.date) = :year
               and c.type = :type
