@@ -27,6 +27,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
             join t.category c
             join c.categoryIcon ci
             where t.user.id = :userId
+              and c.user.id = :userId
               and c.type = :type
               and month(t.date) = :month
               and year(t.date) = :year
