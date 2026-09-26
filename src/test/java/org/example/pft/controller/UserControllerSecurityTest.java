@@ -23,11 +23,13 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -83,6 +85,29 @@ class UserControllerSecurityTest {
                 """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.path").value("/api/user/profile"));
+
+        verify(userService, never()).updateProfile(any(ProfileUserUpdateRequest.class));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void updateProfile_withAuthenticatedUserWithoutUserRole_shouldReturn403() throws Exception {
+        mockMvc.perform(put("/api/user/profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "fullName": "Updated User",
+                    "avatar": "new-avatar.png",
+                    "twoFactorEnabled": true
+                }
+                """))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("Forbidden"))
+                .andExpect(jsonPath("$.message").exists())
                 .andExpect(jsonPath("$.path").value("/api/user/profile"));
 
         verify(userService, never()).updateProfile(any(ProfileUserUpdateRequest.class));
@@ -157,7 +182,7 @@ class UserControllerSecurityTest {
         verify(userService).updateProfile(requestCaptor.capture());
 
         assertEquals("Updated User", requestCaptor.getValue().getFullName());
-        assertEquals(null, requestCaptor.getValue().getAvatar());
+        assertNull(requestCaptor.getValue().getAvatar());
         assertEquals(false, requestCaptor.getValue().getTwoFactorEnabled());
     }
 
