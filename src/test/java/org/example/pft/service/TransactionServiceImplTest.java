@@ -195,16 +195,26 @@ class TransactionServiceImplTest {
         assertEquals(0, pageableCaptor.getValue().getPageNumber());
         assertEquals(10, pageableCaptor.getValue().getPageSize());
 
-        verify(categoryRepository, never()).findById(any());
+        verify(categoryRepository, never()).findByIdAndUser(any(), any());
     }
 
     @Test
-    void showHistory_withCategoryFilter_shouldValidateCategoryAndUsePaging() {
+    void showHistory_withOwnedCategoryFilter_shouldValidateCategoryOwnershipAndUsePaging() {
         HistoryRequest request = createHistoryRequest(20L, 2, 5);
+        List<HistoryData> history = List.of(
+                new HistoryData(
+                        20L,
+                        "Food",
+                        "food-icon",
+                        CategoryType.EXPENSE,
+                        new BigDecimal("125000.50"),
+                        LocalDate.of(2026, 9, 7)
+                )
+        );
 
         when(currentUserHelper.getCurrentUser())
                 .thenReturn(user);
-        when(categoryRepository.findById(20L))
+        when(categoryRepository.findByIdAndUser(20L, user))
                 .thenReturn(Optional.of(foodCategory));
         when(transactionRepository.showHistory(
                 eq(1L),
@@ -213,12 +223,14 @@ class TransactionServiceImplTest {
                 eq(20L),
                 eq(CategoryType.EXPENSE),
                 any(Pageable.class)
-        )).thenReturn(List.of());
+        )).thenReturn(history);
 
         TransactionResponse<List<HistoryData>> response = transactionService.showHistory(request);
 
         assertTrue(response.isSuccess());
-        assertTrue(response.getData().isEmpty());
+        assertEquals("Transaction history fetched successfully", response.getMessage());
+        assertEquals(1, response.getData().size());
+        assertEquals("Food", response.getData().get(0).getCategory().getName());
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
         verify(transactionRepository).showHistory(
@@ -232,7 +244,7 @@ class TransactionServiceImplTest {
         assertEquals(1, pageableCaptor.getValue().getPageNumber());
         assertEquals(5, pageableCaptor.getValue().getPageSize());
 
-        verify(categoryRepository).findById(20L);
+        verify(categoryRepository).findByIdAndUser(20L, user);
     }
 
     @Test
@@ -272,14 +284,67 @@ class TransactionServiceImplTest {
 
         when(currentUserHelper.getCurrentUser())
                 .thenReturn(user);
-        when(categoryRepository.findById(99L))
+        when(categoryRepository.findByIdAndUser(99L, user))
                 .thenReturn(Optional.empty());
 
-        assertThrows(
+        ResourceNotFoundException exception = assertThrows(
                 ResourceNotFoundException.class,
                 () -> transactionService.showHistory(request)
         );
+        assertEquals("Category not found", exception.getMessage());
 
+        verify(categoryRepository).findByIdAndUser(99L, user);
+        verify(transactionRepository, never()).showHistory(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+        );
+    }
+
+    @Test
+    void showHistory_withCategoryOwnedByAnotherUser_shouldThrowExceptionAndNotQueryHistory() {
+        HistoryRequest request = createHistoryRequest(21L, 1, 10);
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(categoryRepository.findByIdAndUser(21L, user))
+                .thenReturn(Optional.empty());
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> transactionService.showHistory(request)
+        );
+        assertEquals("Category not found", exception.getMessage());
+
+        verify(categoryRepository).findByIdAndUser(21L, user);
+        verify(categoryRepository, never()).findById(21L);
+        verify(transactionRepository, never()).showHistory(
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any()
+        );
+    }
+
+    @Test
+    void showHistory_whenCurrentUserCannotBeResolved_shouldNotQueryRepositories() {
+        HistoryRequest request = createHistoryRequest(20L, 1, 10);
+
+        when(currentUserHelper.getCurrentUser())
+                .thenThrow(new ResourceNotFoundException("User not found"));
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> transactionService.showHistory(request)
+        );
+        assertEquals("User not found", exception.getMessage());
+
+        verify(categoryRepository, never()).findByIdAndUser(any(), any());
         verify(transactionRepository, never()).showHistory(
                 any(),
                 any(),

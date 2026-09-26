@@ -84,7 +84,7 @@ public class TransactionServiceImpl implements TransactionService {
 
         Long categoryId = request.getCategoryId();
         if (categoryId != null) {
-            categoryRepository.findById(categoryId)
+            categoryRepository.findByIdAndUser(categoryId, user)
                     .orElseThrow(()-> new ResourceNotFoundException("Category not found"));
         }
 
