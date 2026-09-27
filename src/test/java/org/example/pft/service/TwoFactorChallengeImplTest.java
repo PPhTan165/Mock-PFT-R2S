@@ -3,6 +3,7 @@ package org.example.pft.service;
 import org.example.pft.entity.TwoFactorChallenge;
 import org.example.pft.entity.User;
 import org.example.pft.exception.BusinessValidationException;
+import org.example.pft.exception.ResourceNotFoundException;
 import org.example.pft.repository.TwoFactorChallengeRepository;
 import org.example.pft.service.impl.TwoFactorChallengeImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,6 +20,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -132,6 +134,41 @@ class TwoFactorChallengeImplTest {
     }
 
     @Test
+    void createChallenge_afterCooldown_shouldReplaceOldChallenge() {
+        challenge.setExpiresAt(LocalDateTime.of(2099, 1, 1, 0, 0));
+        challenge.setLastSentAt(LocalDateTime.of(2000, 1, 1, 0, 0));
+
+        when(twoFactorChallengeRepository.findFirstByUserIdAndUsedFalseOrderByCreatedAtDesc(1L))
+                .thenReturn(Optional.of(challenge));
+
+        String challengeId = twoFactorChallengeService.createChallenge(user);
+
+        ArgumentCaptor<TwoFactorChallenge> challengeCaptor =
+                ArgumentCaptor.forClass(TwoFactorChallenge.class);
+        ArgumentCaptor<String> otpCaptor = ArgumentCaptor.forClass(String.class);
+
+        verify(twoFactorChallengeRepository, times(2))
+                .save(challengeCaptor.capture());
+        verify(emailService)
+                .sendOtpMail(eq("user@example.com"), otpCaptor.capture());
+
+        TwoFactorChallenge oldChallenge = challengeCaptor.getAllValues().get(0);
+        TwoFactorChallenge newChallenge = challengeCaptor.getAllValues().get(1);
+        String otpCode = otpCaptor.getValue();
+
+        assertSame(challenge, oldChallenge);
+        assertTrue(oldChallenge.getUsed());
+
+        assertEquals(challengeId, newChallenge.getChallengeId());
+        assertNotEquals("challenge-123", newChallenge.getChallengeId());
+        assertEquals(user, newChallenge.getUser());
+        assertEquals(0, newChallenge.getAttemptCount());
+        assertFalse(newChallenge.getUsed());
+        assertEquals(newChallenge.getOtpHash(), otpCode);
+        assertTrue(otpCode.matches("\\d{6}"));
+    }
+
+    @Test
     void verifyCode_withValidCode_shouldMarkChallengeUsedAndReturnUser() {
         when(twoFactorChallengeRepository.findByChallengeId("challenge-123"))
                 .thenReturn(Optional.of(challenge));
@@ -140,6 +177,101 @@ class TwoFactorChallengeImplTest {
 
         assertSame(user, result);
         assertTrue(challenge.getUsed());
+
+        verify(twoFactorChallengeRepository)
+                .save(challenge);
+    }
+
+    @Test
+    void verifyCode_whenChallengeNotFound_shouldThrowNotFound() {
+        when(twoFactorChallengeRepository.findByChallengeId("missing-challenge"))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                ResourceNotFoundException.class,
+                () -> twoFactorChallengeService.verifyCode("missing-challenge", "123456")
+        );
+
+        verify(twoFactorChallengeRepository, never())
+                .save(any());
+    }
+
+    @Test
+    void verifyCode_whenChallengeAlreadyUsed_shouldReject() {
+        challenge.setUsed(true);
+        challenge.setAttemptCount(2);
+
+        when(twoFactorChallengeRepository.findByChallengeId("challenge-123"))
+                .thenReturn(Optional.of(challenge));
+
+        BusinessValidationException exception = assertThrows(
+                BusinessValidationException.class,
+                () -> twoFactorChallengeService.verifyCode("challenge-123", "123456")
+        );
+
+        assertEquals("Two-factor challenge has already been used", exception.getMessage());
+        assertEquals(2, challenge.getAttemptCount());
+        assertTrue(challenge.getUsed());
+
+        verify(twoFactorChallengeRepository, never())
+                .save(any());
+    }
+
+    @Test
+    void verifyCode_whenChallengeExpired_shouldReject() {
+        challenge.setExpiresAt(LocalDateTime.of(2000, 1, 1, 0, 0));
+
+        when(twoFactorChallengeRepository.findByChallengeId("challenge-123"))
+                .thenReturn(Optional.of(challenge));
+
+        BusinessValidationException exception = assertThrows(
+                BusinessValidationException.class,
+                () -> twoFactorChallengeService.verifyCode("challenge-123", "123456")
+        );
+
+        assertEquals("Verification code has expired", exception.getMessage());
+        assertEquals(0, challenge.getAttemptCount());
+        assertFalse(challenge.getUsed());
+
+        verify(twoFactorChallengeRepository, never())
+                .save(any());
+    }
+
+    @Test
+    void verifyCode_whenMaxAttemptsReached_shouldReject() {
+        challenge.setAttemptCount(5);
+
+        when(twoFactorChallengeRepository.findByChallengeId("challenge-123"))
+                .thenReturn(Optional.of(challenge));
+
+        BusinessValidationException exception = assertThrows(
+                BusinessValidationException.class,
+                () -> twoFactorChallengeService.verifyCode("challenge-123", "123456")
+        );
+
+        assertEquals("Too many verification attempts", exception.getMessage());
+        assertEquals(5, challenge.getAttemptCount());
+        assertFalse(challenge.getUsed());
+
+        verify(twoFactorChallengeRepository, never())
+                .save(any());
+    }
+
+    @Test
+    void verifyCode_onFifthIncorrectAttempt_shouldReachLimit() {
+        challenge.setAttemptCount(4);
+
+        when(twoFactorChallengeRepository.findByChallengeId("challenge-123"))
+                .thenReturn(Optional.of(challenge));
+
+        BusinessValidationException exception = assertThrows(
+                BusinessValidationException.class,
+                () -> twoFactorChallengeService.verifyCode("challenge-123", "000000")
+        );
+
+        assertEquals("Too many verification attempts", exception.getMessage());
+        assertEquals(5, challenge.getAttemptCount());
+        assertFalse(challenge.getUsed());
 
         verify(twoFactorChallengeRepository)
                 .save(challenge);
