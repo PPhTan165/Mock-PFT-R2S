@@ -42,9 +42,14 @@ public class TwoFactorChallengeImpl implements TwoFactorChallengeService {
             TwoFactorChallenge challenge = latestChallenge.get();
 
             boolean invalidChallenge = checkInvalidChallenge(challenge);
-            boolean stillInCooldown = challenge.getLastSentAt()
-                    .plusSeconds(RESEND_COOLDOWN_SECONDS)
-                    .isAfter(now);
+            LocalDateTime availableAt =
+                    challenge.getLastSentAt()
+                            .plusSeconds(RESEND_COOLDOWN_SECONDS);
+            boolean stillInCooldown = availableAt.isAfter(now);
+
+            if (!invalidChallenge && isAttemptLimitReached(challenge) && stillInCooldown) {
+                throw cooldownException(now, availableAt);
+            }
 
             if (!invalidChallenge && stillInCooldown) {
                 return challenge.getChallengeId();
@@ -92,29 +97,21 @@ public class TwoFactorChallengeImpl implements TwoFactorChallengeService {
             throw new BusinessValidationException("Two-factor challenge has already been used");
         }
 
+        if(isAttemptLimitReached(challenge)){
+            throw new BusinessValidationException("Too many verification attempts");
+        }
+
         LocalDateTime availableAt =
                 challenge.getLastSentAt()
                         .plusSeconds(RESEND_COOLDOWN_SECONDS);
 
         if (availableAt.isAfter(now)) {
-
-            long remainingSeconds =
-                    Duration.between(
-                            now,
-                            availableAt
-                    ).getSeconds();
-
-            throw new BusinessValidationException(
-                    "Please wait "
-                            + remainingSeconds
-                            + " seconds before requesting another code"
-            );
+            throw cooldownException(now, availableAt);
         }
 
         String newOtp = generateOTP();
 
         challenge.setOtpHash(newOtp);
-        challenge.setAttemptCount(0);
         challenge.setExpiresAt(now.plusMinutes(OTP_EXPIRE_MINUTES));
         challenge.setLastSentAt(now);
 
@@ -176,5 +173,26 @@ public class TwoFactorChallengeImpl implements TwoFactorChallengeService {
     private boolean checkInvalidChallenge(TwoFactorChallenge challenge){
         return Boolean.TRUE.equals(challenge.getUsed())
                 || !challenge.getExpiresAt().isAfter(LocalDateTime.now());
+    }
+
+    private boolean isAttemptLimitReached(TwoFactorChallenge challenge) {
+        return challenge.getAttemptCount() >= MAX_ATTEMPTS;
+    }
+
+    private BusinessValidationException cooldownException(
+            LocalDateTime now,
+            LocalDateTime availableAt
+    ) {
+        long remainingSeconds =
+                Duration.between(
+                        now,
+                        availableAt
+                ).getSeconds();
+
+        return new BusinessValidationException(
+                "Please wait "
+                        + remainingSeconds
+                        + " seconds before requesting another code"
+        );
     }
 }
