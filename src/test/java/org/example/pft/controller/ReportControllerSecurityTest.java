@@ -44,6 +44,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -241,6 +242,50 @@ class ReportControllerSecurityTest {
                                 }
                                 """))
                 .andExpect(status().isUnprocessableContent());
+
+        verify(pdfExportService, never()).exportPDF(any());
+    }
+
+    @Test
+    @WithMockUser
+    void exportPDF_withInvalidMonthType_shouldReturnInvalidJsonFallback() throws Exception {
+        mockMvc.perform(post("/api/reports/export/pdf")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "month": "abc",
+                                  "year": 2026,
+                                  "reportType": "SUMMARY",
+                                  "includeChart": true,
+                                  "includeTopExpenses": false
+                                }
+                                """))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("request"))
+                .andExpect(jsonPath("$.errors[0].message").value("Invalid value"));
+
+        verify(pdfExportService, never()).exportPDF(any());
+    }
+
+    @Test
+    @WithMockUser
+    void exportPDF_withMalformedJson_shouldReturnInvalidJsonFallback() throws Exception {
+        mockMvc.perform(post("/api/reports/export/pdf")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "month": 9,
+                                  "year": 2026
+                                """))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("request"))
+                .andExpect(jsonPath("$.errors[0].message").value("Invalid value"));
 
         verify(pdfExportService, never()).exportPDF(any());
     }
