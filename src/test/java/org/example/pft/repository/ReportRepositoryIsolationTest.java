@@ -2,6 +2,7 @@ package org.example.pft.repository;
 
 import jakarta.persistence.EntityManager;
 import org.example.pft.dto.report.category.ReportCategory;
+import org.example.pft.dto.report.monthly.MonthlyTypeTotal;
 import org.example.pft.dto.report.summary.TopExpenses;
 import org.example.pft.entity.Category;
 import org.example.pft.entity.CategoryIcon;
@@ -103,6 +104,25 @@ class ReportRepositoryIsolationTest {
         assertAmount("300.00", expense);
         assertAmount("1000.00", income);
         assertAmount("500.00", previousMonthExpense);
+    }
+
+    @Test
+    void findMonthlyTotalsByYear_shouldAggregateByMonthAndTypeOnlyForOwnedCategories() {
+        List<MonthlyTypeTotal> totals = transactionRepository.findMonthlyTotalsByYear(
+                userA.getId(),
+                REPORT_YEAR
+        );
+
+        Map<String, BigDecimal> amountsByMonthAndType = totals.stream()
+                .collect(Collectors.toMap(
+                        total -> total.getMonth() + ":" + total.getType(),
+                        MonthlyTypeTotal::getTotal
+                ));
+
+        assertEquals(3, totals.size());
+        assertAmount("500.00", amountsByMonthAndType.get("8:" + CategoryType.EXPENSE));
+        assertAmount("300.00", amountsByMonthAndType.get("9:" + CategoryType.EXPENSE));
+        assertAmount("1000.00", amountsByMonthAndType.get("9:" + CategoryType.INCOME));
     }
 
     @Test
