@@ -3,6 +3,8 @@ package org.example.pft.service;
 import org.example.pft.dto.report.ReportResponse;
 import org.example.pft.dto.report.category.ReportCategory;
 import org.example.pft.dto.report.category.ReportCategoryData;
+import org.example.pft.dto.report.monthly.ChartData;
+import org.example.pft.dto.report.monthly.MonthlyData;
 import org.example.pft.dto.report.summary.SummaryData;
 import org.example.pft.dto.report.summary.TopExpenses;
 import org.example.pft.entity.User;
@@ -24,8 +26,6 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,6 +36,10 @@ class ReportServiceImplTest {
     private static final Long USER_ID = 1L;
     private static final Integer MONTH = 9;
     private static final Integer YEAR = 2026;
+    private static final List<String> MONTH_LABELS = List.of(
+            "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+            "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
+    );
 
     @Mock
     CategoryRepository categoryRepository;
@@ -184,34 +188,86 @@ class ReportServiceImplTest {
     }
 
     @Test
-    void showMonthly_shouldReturnSuccessResponse() {
+    void showMonthly_withCompleteYear_shouldReturnOrderedChartAndSelectedMonthSummary() {
         when(currentUserHelper.getCurrentUser())
                 .thenReturn(user);
 
-        when(transactionRepository.getTotalByType(
-                eq(USER_ID),
-                anyInt(),
-                eq(YEAR),
-                eq(CategoryType.INCOME)))
-                .thenReturn(new BigDecimal("1000.00"));
+        for (int month = 1; month <= 12; month++) {
+            stubTotal(month, YEAR, CategoryType.INCOME, expectedCompleteYearIncome(month));
+            stubTotal(month, YEAR, CategoryType.EXPENSE, expectedCompleteYearExpense(month));
+        }
 
-        when(transactionRepository.getTotalByType(
-                eq(USER_ID),
-                anyInt(),
-                eq(YEAR),
-                eq(CategoryType.EXPENSE)))
-                .thenReturn(new BigDecimal("300.00"));
-
-        ReportResponse<?> response = reportService.showMonthly(MONTH, YEAR);
+        ReportResponse<MonthlyData> response = reportService.showMonthly(MONTH, YEAR);
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
+        assertEquals("Monthly financial report fetched successfully", response.getMessage());
 
-        verify(currentUserHelper).getCurrentUser();
-        verify(transactionRepository, times(13))
-                .getTotalByType(eq(USER_ID), anyInt(), eq(YEAR), eq(CategoryType.INCOME));
-        verify(transactionRepository, times(13))
-                .getTotalByType(eq(USER_ID), anyInt(), eq(YEAR), eq(CategoryType.EXPENSE));
+        MonthlyData data = response.getData();
+        assertNotNull(data);
+        assertSelectedSummary(data, "September 2026", "900.90", "225.45");
+        assertEquals(12, data.getChart().size());
+        for (int month = 1; month <= 12; month++) {
+            assertChart(
+                    data.getChart().get(month - 1),
+                    MONTH_LABELS.get(month - 1),
+                    expectedCompleteYearIncome(month).toPlainString(),
+                    expectedCompleteYearExpense(month).toPlainString()
+            );
+        }
+
+        verifyMonthlyRepositoryQueries(MONTH, YEAR);
+    }
+
+    @Test
+    void showMonthly_withMissingMonths_shouldReturnTwelveZeroFilledOrderedEntries() {
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+
+        stubTotal(1, YEAR, CategoryType.INCOME, new BigDecimal("100.25"));
+        stubTotal(1, YEAR, CategoryType.EXPENSE, new BigDecimal("10.05"));
+        stubTotal(5, YEAR, CategoryType.INCOME, new BigDecimal("500.55"));
+        stubTotal(12, YEAR, CategoryType.EXPENSE, new BigDecimal("1200.99"));
+
+        ReportResponse<MonthlyData> response = reportService.showMonthly(5, YEAR);
+
+        MonthlyData data = response.getData();
+        assertNotNull(data);
+        assertSelectedSummary(data, "May 2026", "500.55", "0");
+        assertEquals(12, data.getChart().size());
+        assertChart(data.getChart().get(0), "JAN", "100.25", "10.05");
+        assertZeroChart(data.getChart().get(1), "FEB");
+        assertZeroChart(data.getChart().get(2), "MAR");
+        assertZeroChart(data.getChart().get(3), "APR");
+        assertChart(data.getChart().get(4), "MAY", "500.55", "0");
+        assertZeroChart(data.getChart().get(5), "JUN");
+        assertZeroChart(data.getChart().get(6), "JUL");
+        assertZeroChart(data.getChart().get(7), "AUG");
+        assertZeroChart(data.getChart().get(8), "SEP");
+        assertZeroChart(data.getChart().get(9), "OCT");
+        assertZeroChart(data.getChart().get(10), "NOV");
+        assertChart(data.getChart().get(11), "DEC", "0", "1200.99");
+
+        verifyMonthlyRepositoryQueries(5, YEAR);
+    }
+
+    @Test
+    void showMonthly_withEmptyYear_shouldReturnTwelveZeroFilledMonthsForSelectedYear() {
+        Integer emptyYear = 2025;
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+
+        ReportResponse<MonthlyData> response = reportService.showMonthly(1, emptyYear);
+
+        MonthlyData data = response.getData();
+        assertNotNull(data);
+        assertSelectedSummary(data, "January 2025", "0", "0");
+        assertEquals(12, data.getChart().size());
+        for (int month = 1; month <= 12; month++) {
+            assertZeroChart(data.getChart().get(month - 1), MONTH_LABELS.get(month - 1));
+        }
+
+        verifyMonthlyRepositoryQueries(1, emptyYear);
     }
 
     @Test
@@ -335,6 +391,58 @@ class ReportServiceImplTest {
         assertEquals(expectedCategory, topExpense.getCategory());
         assertAmount(expectedAmount, topExpense.getAmount());
         assertDecimal(expectedPercentage, topExpense.getPercentage());
+    }
+
+    private void assertSelectedSummary(
+            MonthlyData data,
+            String expectedMonth,
+            String expectedIncome,
+            String expectedExpense
+    ) {
+        assertNotNull(data.getSummary());
+        assertEquals(expectedMonth, data.getSummary().getMonth());
+        assertAmount(expectedIncome, data.getSummary().getIncome());
+        assertAmount(expectedExpense, data.getSummary().getExpense());
+    }
+
+    private void assertChart(
+            ChartData chart,
+            String expectedMonth,
+            String expectedIncome,
+            String expectedExpense
+    ) {
+        assertEquals(expectedMonth, chart.getMonth());
+        assertAmount(expectedIncome, chart.getIncome());
+        assertAmount(expectedExpense, chart.getExpense());
+    }
+
+    private void assertZeroChart(ChartData chart, String expectedMonth) {
+        assertChart(chart, expectedMonth, "0", "0");
+    }
+
+    private void stubTotal(Integer month, Integer year, CategoryType type, BigDecimal total) {
+        when(transactionRepository.getTotalByType(USER_ID, month, year, type))
+                .thenReturn(total);
+    }
+
+    private void verifyMonthlyRepositoryQueries(Integer selectedMonth, Integer year) {
+        verify(currentUserHelper).getCurrentUser();
+
+        for (int month = 1; month <= 12; month++) {
+            int expectedCalls = month == selectedMonth ? 2 : 1;
+            verify(transactionRepository, times(expectedCalls))
+                    .getTotalByType(USER_ID, month, year, CategoryType.INCOME);
+            verify(transactionRepository, times(expectedCalls))
+                    .getTotalByType(USER_ID, month, year, CategoryType.EXPENSE);
+        }
+    }
+
+    private BigDecimal expectedCompleteYearIncome(int month) {
+        return BigDecimal.valueOf(month).multiply(new BigDecimal("100.10"));
+    }
+
+    private BigDecimal expectedCompleteYearExpense(int month) {
+        return BigDecimal.valueOf(month).multiply(new BigDecimal("25.05"));
     }
 
     private void assertAmount(String expected, BigDecimal actual) {
