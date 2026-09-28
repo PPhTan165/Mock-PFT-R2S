@@ -22,10 +22,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -224,10 +228,12 @@ class ReportServiceImplTest {
         when(currentUserHelper.getCurrentUser())
                 .thenReturn(user);
 
-        stubTotal(1, YEAR, CategoryType.INCOME, new BigDecimal("100.25"));
-        stubTotal(1, YEAR, CategoryType.EXPENSE, new BigDecimal("10.05"));
-        stubTotal(5, YEAR, CategoryType.INCOME, new BigDecimal("500.55"));
-        stubTotal(12, YEAR, CategoryType.EXPENSE, new BigDecimal("1200.99"));
+        stubMonthlyTotals(YEAR, Map.of(
+                new MonthlyTotalKey(1, CategoryType.INCOME), new BigDecimal("100.25"),
+                new MonthlyTotalKey(1, CategoryType.EXPENSE), new BigDecimal("10.05"),
+                new MonthlyTotalKey(5, CategoryType.INCOME), new BigDecimal("500.55"),
+                new MonthlyTotalKey(12, CategoryType.EXPENSE), new BigDecimal("1200.99")
+        ));
 
         ReportResponse<MonthlyData> response = reportService.showMonthly(5, YEAR);
 
@@ -425,6 +431,18 @@ class ReportServiceImplTest {
                 .thenReturn(total);
     }
 
+    private void stubMonthlyTotals(Integer year, Map<MonthlyTotalKey, BigDecimal> totals) {
+        when(transactionRepository.getTotalByType(
+                eq(USER_ID),
+                anyInt(),
+                eq(year),
+                any(CategoryType.class)
+        )).thenAnswer(invocation -> totals.get(new MonthlyTotalKey(
+                invocation.getArgument(1),
+                invocation.getArgument(3)
+        )));
+    }
+
     private void verifyMonthlyRepositoryQueries(Integer selectedMonth, Integer year) {
         verify(currentUserHelper).getCurrentUser();
 
@@ -453,5 +471,8 @@ class ReportServiceImplTest {
     private void assertDecimal(String expected, BigDecimal actual) {
         assertNotNull(actual);
         assertEquals(new BigDecimal(expected), actual);
+    }
+
+    private record MonthlyTotalKey(Integer month, CategoryType type) {
     }
 }
