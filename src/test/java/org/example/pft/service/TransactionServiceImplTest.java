@@ -248,6 +248,75 @@ class TransactionServiceImplTest {
     }
 
     @Test
+    void showHistory_withNullPageAndSize_shouldUseDefaultPaging() {
+        HistoryRequest request = createHistoryRequest(null, null, null);
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        stubHistoryRepository(null);
+
+        TransactionResponse<List<HistoryData>> response = transactionService.showHistory(request);
+
+        assertTrue(response.isSuccess());
+        assertEquals(List.of(), response.getData());
+
+        Pageable pageable = captureHistoryPageable(null);
+        assertPageable(pageable, 0, HistoryRequest.DEFAULT_SIZE);
+        verify(categoryRepository, never()).findByIdAndUser(any(), any());
+    }
+
+    @Test
+    void showHistory_withPageBelowMinimum_shouldUseDefaultPageAndPreserveValidSize() {
+        HistoryRequest request = createHistoryRequest(null, -3, 5);
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        stubHistoryRepository(null);
+
+        TransactionResponse<List<HistoryData>> response = transactionService.showHistory(request);
+
+        assertTrue(response.isSuccess());
+
+        Pageable pageable = captureHistoryPageable(null);
+        assertPageable(pageable, 0, 5);
+        verify(categoryRepository, never()).findByIdAndUser(any(), any());
+    }
+
+    @Test
+    void showHistory_withSizeBelowMinimum_shouldUseDefaultSizeAndPreserveValidPage() {
+        HistoryRequest request = createHistoryRequest(null, 2, 0);
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        stubHistoryRepository(null);
+
+        TransactionResponse<List<HistoryData>> response = transactionService.showHistory(request);
+
+        assertTrue(response.isSuccess());
+
+        Pageable pageable = captureHistoryPageable(null);
+        assertPageable(pageable, 1, HistoryRequest.DEFAULT_SIZE);
+        verify(categoryRepository, never()).findByIdAndUser(any(), any());
+    }
+
+    @Test
+    void showHistory_withMaxPageSize_shouldPreserveMaxSize() {
+        HistoryRequest request = createHistoryRequest(null, 1, HistoryRequest.MAX_SIZE);
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        stubHistoryRepository(null);
+
+        TransactionResponse<List<HistoryData>> response = transactionService.showHistory(request);
+
+        assertTrue(response.isSuccess());
+
+        Pageable pageable = captureHistoryPageable(null);
+        assertPageable(pageable, 0, HistoryRequest.MAX_SIZE);
+        verify(categoryRepository, never()).findByIdAndUser(any(), any());
+    }
+
+    @Test
     void showHistory_withOversizedPageSize_shouldCapPageSizeServerSide() {
         HistoryRequest request = createHistoryRequest(null, 1, HistoryRequest.MAX_SIZE + 1);
 
@@ -275,7 +344,9 @@ class TransactionServiceImplTest {
                 eq(CategoryType.EXPENSE),
                 pageableCaptor.capture()
         );
+        assertEquals(0, pageableCaptor.getValue().getPageNumber());
         assertEquals(HistoryRequest.MAX_SIZE, pageableCaptor.getValue().getPageSize());
+        assertTrue(pageableCaptor.getValue().getSort().isUnsorted());
     }
 
     @Test
@@ -364,5 +435,35 @@ class TransactionServiceImplTest {
         request.setPage(page);
         request.setSize(size);
         return request;
+    }
+
+    private void stubHistoryRepository(Long categoryId) {
+        when(transactionRepository.showHistory(
+                eq(1L),
+                eq(LocalDate.of(2026, 9, 1)),
+                eq(LocalDate.of(2026, 9, 30)),
+                eq(categoryId),
+                eq(CategoryType.EXPENSE),
+                any(Pageable.class)
+        )).thenReturn(List.of());
+    }
+
+    private Pageable captureHistoryPageable(Long categoryId) {
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(transactionRepository).showHistory(
+                eq(1L),
+                eq(LocalDate.of(2026, 9, 1)),
+                eq(LocalDate.of(2026, 9, 30)),
+                eq(categoryId),
+                eq(CategoryType.EXPENSE),
+                pageableCaptor.capture()
+        );
+        return pageableCaptor.getValue();
+    }
+
+    private void assertPageable(Pageable pageable, int expectedPageNumber, int expectedPageSize) {
+        assertEquals(expectedPageNumber, pageable.getPageNumber());
+        assertEquals(expectedPageSize, pageable.getPageSize());
+        assertTrue(pageable.getSort().isUnsorted());
     }
 }
