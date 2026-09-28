@@ -20,6 +20,7 @@ import org.example.pft.service.impl.BudgetServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,6 +30,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -119,10 +121,19 @@ class BudgetServiceImplTest {
 
         assertNotNull(response);
         assertTrue(response.isSuccess());
-        assertEquals(200L, response.getData().getId());
-        assertEquals(20L, response.getData().getCategory().getId());
+        assertEquals("Budget saved successfully", response.getMessage());
+        assertBudgetData(response.getData(), new BigDecimal("1000000"));
 
-        verify(budgetRepository).save(any(Budget.class));
+        ArgumentCaptor<Budget> budgetCaptor = ArgumentCaptor.forClass(Budget.class);
+        verify(budgetRepository).save(budgetCaptor.capture());
+        Budget savedBudget = budgetCaptor.getValue();
+        assertAll(
+                () -> assertEquals(user, savedBudget.getUser()),
+                () -> assertEquals(foodCategory, savedBudget.getCategory()),
+                () -> assertEquals(new BigDecimal("1000000"), savedBudget.getAmount()),
+                () -> assertEquals(Byte.valueOf((byte) 9), savedBudget.getMonth()),
+                () -> assertEquals(Short.valueOf((short) 2026), savedBudget.getYear())
+        );
     }
 
     @Test
@@ -143,8 +154,7 @@ class BudgetServiceImplTest {
         BudgetResponse<BudgetData> response = budgetService.create(request);
 
         assertTrue(response.isSuccess());
-        assertEquals(200L, response.getData().getId());
-        assertEquals(20L, response.getData().getCategory().getId());
+        assertBudgetData(response.getData(), new BigDecimal("1000000"));
 
         verify(budgetRepository).save(budget);
     }
@@ -192,6 +202,56 @@ class BudgetServiceImplTest {
     }
 
     @Test
+    void create_withCategoryWithoutOwner_shouldThrowNotFoundAndNotSave() {
+        CreateBudgetRequest request = createBudgetRequest(22L);
+
+        Category categoryWithoutOwner = new Category();
+        categoryWithoutOwner.setId(22L);
+        categoryWithoutOwner.setCategoryIcon(foodIcon);
+        categoryWithoutOwner.setType(CategoryType.EXPENSE);
+
+        when(categoryRepository.findById(22L))
+                .thenReturn(Optional.of(categoryWithoutOwner));
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> budgetService.create(request)
+        );
+
+        assertEquals("Category not found with id: 22", exception.getMessage());
+        verify(budgetRepository, never()).findByUserAndCategoryAndMonthAndYear(any(), any(), any(), any());
+        verify(budgetRepository, never()).save(any());
+    }
+
+    @Test
+    void create_withCategoryOwnerWithoutId_shouldThrowNotFoundAndNotSave() {
+        CreateBudgetRequest request = createBudgetRequest(23L);
+        User ownerWithoutId = new User();
+
+        Category categoryWithOwnerWithoutId = new Category();
+        categoryWithOwnerWithoutId.setId(23L);
+        categoryWithOwnerWithoutId.setUser(ownerWithoutId);
+        categoryWithOwnerWithoutId.setCategoryIcon(foodIcon);
+        categoryWithOwnerWithoutId.setType(CategoryType.EXPENSE);
+
+        when(categoryRepository.findById(23L))
+                .thenReturn(Optional.of(categoryWithOwnerWithoutId));
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> budgetService.create(request)
+        );
+
+        assertEquals("Category not found with id: 23", exception.getMessage());
+        verify(budgetRepository, never()).findByUserAndCategoryAndMonthAndYear(any(), any(), any(), any());
+        verify(budgetRepository, never()).save(any());
+    }
+
+    @Test
     void create_whenCategoryNotFound_shouldThrowException() {
         CreateBudgetRequest request = createBudgetRequest(99L);
 
@@ -225,8 +285,8 @@ class BudgetServiceImplTest {
         BudgetResponse<BudgetData> response = budgetService.updateAmount(200L, request);
 
         assertTrue(response.isSuccess());
-        assertEquals(200L, response.getData().getId());
-        assertEquals(20L, response.getData().getCategory().getId());
+        assertEquals("Update amount budget successfully", response.getMessage());
+        assertBudgetData(response.getData(), new BigDecimal("1500000"));
 
         verify(budgetRepository).save(budget);
     }
@@ -294,10 +354,60 @@ class BudgetServiceImplTest {
         BudgetResponse<List<BudgetData>> response = budgetService.getAll(request);
 
         assertTrue(response.isSuccess());
-        assertEquals(200L, response.getData().get(0).getId());
-        assertEquals(20L, response.getData().get(0).getCategory().getId());
+        assertEquals("Budget list fetched successfully", response.getMessage());
+        assertEquals(1, response.getData().size());
+        assertBudgetData(response.getData().get(0), new BigDecimal("1000000"));
 
         verify(budgetRepository).findByUserAndMonthAndYear(user, (byte) 9, (short) 2026);
+    }
+
+    @Test
+    void getAll_whenMappedCategoryNoLongerExists_shouldThrowNotFound() {
+        GetAllBudgetRequest request = new GetAllBudgetRequest();
+        request.setMonth(9);
+        request.setYear(2026);
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(budgetRepository.findByUserAndMonthAndYear(user, (byte) 9, (short) 2026))
+                .thenReturn(List.of(budget));
+        when(categoryRepository.findById(20L))
+                .thenReturn(Optional.empty());
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> budgetService.getAll(request)
+        );
+
+        assertEquals("Category not found with id: 20", exception.getMessage());
+        verify(categoryIconRepository, never()).findById(any());
+        verify(budgetRepository, never()).save(any());
+        verify(budgetRepository, never()).delete(any());
+    }
+
+    @Test
+    void getAll_whenMappedCategoryIconNoLongerExists_shouldThrowNotFound() {
+        GetAllBudgetRequest request = new GetAllBudgetRequest();
+        request.setMonth(9);
+        request.setYear(2026);
+
+        when(currentUserHelper.getCurrentUser())
+                .thenReturn(user);
+        when(budgetRepository.findByUserAndMonthAndYear(user, (byte) 9, (short) 2026))
+                .thenReturn(List.of(budget));
+        when(categoryRepository.findById(20L))
+                .thenReturn(Optional.of(foodCategory));
+        when(categoryIconRepository.findById(2L))
+                .thenReturn(Optional.empty());
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> budgetService.getAll(request)
+        );
+
+        assertEquals("Category icon not found with id: 2", exception.getMessage());
+        verify(budgetRepository, never()).save(any());
+        verify(budgetRepository, never()).delete(any());
     }
 
     private CreateBudgetRequest createBudgetRequest(Long categoryId) {
@@ -307,5 +417,19 @@ class BudgetServiceImplTest {
         request.setMonth(9);
         request.setYear(2026);
         return request;
+    }
+
+    private void assertBudgetData(BudgetData data, BigDecimal expectedAmount) {
+        assertNotNull(data);
+        assertEquals(200L, data.getId());
+        assertEquals(0, data.getAmount().compareTo(expectedAmount));
+        assertEquals(9, data.getMonth());
+        assertEquals(2026, data.getYear());
+        assertEquals(CategoryType.EXPENSE, data.getType());
+        assertNotNull(data.getCategory());
+        assertEquals(20L, data.getCategory().getId());
+        assertEquals("Food", data.getCategory().getName());
+        assertEquals("food-icon", data.getCategory().getIcon());
+        assertEquals("food.png", data.getCategory().getIconUrl());
     }
 }
