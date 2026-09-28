@@ -2,6 +2,7 @@ package org.example.pft.repository;
 
 import org.example.pft.dto.dashboard.PieChartData;
 import org.example.pft.dto.dashboard.RecentTransData;
+import org.example.pft.dto.report.monthly.MonthlyTypeTotal;
 import org.example.pft.dto.report.summary.TopExpenses;
 import org.example.pft.dto.transaction.HistoryData;
 import org.example.pft.entity.Transaction;
@@ -44,7 +45,7 @@ public interface TransactionRepository extends JpaRepository<Transaction,Long> {
                 t.id,
                 ci.categoryName,
                 ci.emoji,
-                  case 
+                  case
                        when c.type = 'EXPENSE' then -t.amount
                        else t.amount
                    end as amount,
@@ -81,6 +82,24 @@ public interface TransactionRepository extends JpaRepository<Transaction,Long> {
             @Param("month") Integer month,
             @Param("year") Integer year,
             @Param("type") CategoryType type
+    );
+
+    @Query("""
+            select new org.example.pft.dto.report.monthly.MonthlyTypeTotal(
+                month(t.date),
+                c.type,
+                sum(t.amount)
+            )
+            from Transaction t
+            join t.category c
+            where t.user.id = :userId
+              and c.user.id = :userId
+              and year(t.date) = :year
+            group by month(t.date), c.type
+            """)
+    List<MonthlyTypeTotal> findMonthlyTotalsByYear(
+            @Param("userId") Long userId,
+            @Param("year") Integer year
     );
 
     @Query("""

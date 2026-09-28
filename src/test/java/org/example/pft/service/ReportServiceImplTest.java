@@ -5,6 +5,7 @@ import org.example.pft.dto.report.category.ReportCategory;
 import org.example.pft.dto.report.category.ReportCategoryData;
 import org.example.pft.dto.report.monthly.ChartData;
 import org.example.pft.dto.report.monthly.MonthlyData;
+import org.example.pft.dto.report.monthly.MonthlyTypeTotal;
 import org.example.pft.dto.report.summary.SummaryData;
 import org.example.pft.dto.report.summary.TopExpenses;
 import org.example.pft.entity.User;
@@ -30,8 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -195,11 +196,8 @@ class ReportServiceImplTest {
     void showMonthly_withCompleteYear_shouldReturnOrderedChartAndSelectedMonthSummary() {
         when(currentUserHelper.getCurrentUser())
                 .thenReturn(user);
-
-        for (int month = 1; month <= 12; month++) {
-            stubTotal(month, YEAR, CategoryType.INCOME, expectedCompleteYearIncome(month));
-            stubTotal(month, YEAR, CategoryType.EXPENSE, expectedCompleteYearExpense(month));
-        }
+        when(transactionRepository.findMonthlyTotalsByYear(USER_ID, YEAR))
+                .thenReturn(completeYearTotals());
 
         ReportResponse<MonthlyData> response = reportService.showMonthly(MONTH, YEAR);
 
@@ -227,13 +225,13 @@ class ReportServiceImplTest {
     void showMonthly_withMissingMonths_shouldReturnTwelveZeroFilledOrderedEntries() {
         when(currentUserHelper.getCurrentUser())
                 .thenReturn(user);
-
-        stubMonthlyTotals(YEAR, Map.of(
-                new MonthlyTotalKey(1, CategoryType.INCOME), new BigDecimal("100.25"),
-                new MonthlyTotalKey(1, CategoryType.EXPENSE), new BigDecimal("10.05"),
-                new MonthlyTotalKey(5, CategoryType.INCOME), new BigDecimal("500.55"),
-                new MonthlyTotalKey(12, CategoryType.EXPENSE), new BigDecimal("1200.99")
-        ));
+        when(transactionRepository.findMonthlyTotalsByYear(USER_ID, YEAR))
+                .thenReturn(monthlyTotals(Map.of(
+                        new MonthlyTotalKey(1, CategoryType.INCOME), new BigDecimal("100.25"),
+                        new MonthlyTotalKey(1, CategoryType.EXPENSE), new BigDecimal("10.05"),
+                        new MonthlyTotalKey(5, CategoryType.INCOME), new BigDecimal("500.55"),
+                        new MonthlyTotalKey(12, CategoryType.EXPENSE), new BigDecimal("1200.99")
+                )));
 
         ReportResponse<MonthlyData> response = reportService.showMonthly(5, YEAR);
 
@@ -262,6 +260,8 @@ class ReportServiceImplTest {
         Integer emptyYear = 2025;
         when(currentUserHelper.getCurrentUser())
                 .thenReturn(user);
+        when(transactionRepository.findMonthlyTotalsByYear(USER_ID, emptyYear))
+                .thenReturn(List.of());
 
         ReportResponse<MonthlyData> response = reportService.showMonthly(1, emptyYear);
 
@@ -426,33 +426,11 @@ class ReportServiceImplTest {
         assertChart(chart, expectedMonth, "0", "0");
     }
 
-    private void stubTotal(Integer month, Integer year, CategoryType type, BigDecimal total) {
-        when(transactionRepository.getTotalByType(USER_ID, month, year, type))
-                .thenReturn(total);
-    }
-
-    private void stubMonthlyTotals(Integer year, Map<MonthlyTotalKey, BigDecimal> totals) {
-        when(transactionRepository.getTotalByType(
-                eq(USER_ID),
-                anyInt(),
-                eq(year),
-                any(CategoryType.class)
-        )).thenAnswer(invocation -> totals.get(new MonthlyTotalKey(
-                invocation.getArgument(1),
-                invocation.getArgument(3)
-        )));
-    }
-
     private void verifyMonthlyRepositoryQueries(Integer selectedMonth, Integer year) {
         verify(currentUserHelper).getCurrentUser();
-
-        for (int month = 1; month <= 12; month++) {
-            int expectedCalls = month == selectedMonth ? 2 : 1;
-            verify(transactionRepository, times(expectedCalls))
-                    .getTotalByType(USER_ID, month, year, CategoryType.INCOME);
-            verify(transactionRepository, times(expectedCalls))
-                    .getTotalByType(USER_ID, month, year, CategoryType.EXPENSE);
-        }
+        verify(transactionRepository).findMonthlyTotalsByYear(USER_ID, year);
+        verify(transactionRepository, never())
+                .getTotalByType(eq(USER_ID), anyInt(), eq(year), any(CategoryType.class));
     }
 
     private BigDecimal expectedCompleteYearIncome(int month) {
@@ -461,6 +439,26 @@ class ReportServiceImplTest {
 
     private BigDecimal expectedCompleteYearExpense(int month) {
         return BigDecimal.valueOf(month).multiply(new BigDecimal("25.05"));
+    }
+
+    private List<MonthlyTypeTotal> completeYearTotals() {
+        List<MonthlyTypeTotal> totals = new java.util.ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            totals.add(new MonthlyTypeTotal(month, CategoryType.INCOME, expectedCompleteYearIncome(month)));
+            totals.add(new MonthlyTypeTotal(month, CategoryType.EXPENSE, expectedCompleteYearExpense(month)));
+        }
+        return totals;
+    }
+
+    private List<MonthlyTypeTotal> monthlyTotals(Map<MonthlyTotalKey, BigDecimal> totalsByKey) {
+        return totalsByKey.entrySet()
+                .stream()
+                .map(entry -> new MonthlyTypeTotal(
+                        entry.getKey().month(),
+                        entry.getKey().type(),
+                        entry.getValue()
+                ))
+                .toList();
     }
 
     private void assertAmount(String expected, BigDecimal actual) {
