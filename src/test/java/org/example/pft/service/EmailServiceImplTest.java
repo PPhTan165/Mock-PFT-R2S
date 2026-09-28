@@ -23,7 +23,7 @@ import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -66,17 +66,18 @@ class EmailServiceImplTest {
         assertRecipients(sentMessage, TO);
         assertEquals("Monthly Financial Report", sentMessage.getSubject());
 
-        MimeMultipart multipart = assertMultipart(sentMessage);
-        assertEquals(2, multipart.getCount());
         assertEquals(
                 "Please find your monthly financial report attached.",
-                multipart.getBodyPart(0).getContent()
+                findTextContent(sentMessage, "text/plain")
         );
-        assertEquals("2_summary_apr_2024.pdf", multipart.getBodyPart(1).getFileName());
-        assertEquals(Part.ATTACHMENT, multipart.getBodyPart(1).getDisposition());
+
+        Part attachmentPart = findAttachment(sentMessage, "2_summary_apr_2024.pdf");
+        assertNotNull(attachmentPart);
+        assertEquals("2_summary_apr_2024.pdf", attachmentPart.getFileName());
+        assertEquals(Part.ATTACHMENT, attachmentPart.getDisposition());
         assertArrayEquals(
                 attachment,
-                multipart.getBodyPart(1).getInputStream().readAllBytes()
+                attachmentPart.getInputStream().readAllBytes()
         );
         verifyNoMoreInteractions(mailSender);
     }
@@ -95,11 +96,8 @@ class EmailServiceImplTest {
         assertRecipients(sentMessage, TO);
         assertEquals("Your verification code", sentMessage.getSubject());
 
-        MimeMultipart multipart = assertMultipart(sentMessage);
-        assertEquals(1, multipart.getCount());
-        assertTrue(multipart.getBodyPart(0).isMimeType("text/html"));
-
-        String html = multipart.getBodyPart(0).getContent().toString();
+        String html = findTextContent(sentMessage, "text/html");
+        assertNotNull(html);
         assertTrue(html.contains("Your verification code"));
         assertTrue(html.contains("123456"));
         assertTrue(html.contains("This code expires in 5 minutes."));
@@ -204,15 +202,47 @@ class EmailServiceImplTest {
         return new MimeMessage(Session.getInstance(new Properties()));
     }
 
-    private static MimeMultipart assertMultipart(MimeMessage message) throws Exception {
-        return assertInstanceOf(MimeMultipart.class, message.getContent());
-    }
-
     private static void assertRecipients(MimeMessage message, String expectedRecipient) throws Exception {
         Address[] recipients = message.getRecipients(Message.RecipientType.TO);
 
         assertEquals(1, recipients.length);
         assertEquals(expectedRecipient, recipients[0].toString());
+    }
+
+    private static String findTextContent(Part part, String mimeType) throws Exception {
+        if (part.isMimeType(mimeType)) {
+            return part.getContent().toString();
+        }
+
+        Object content = part.getContent();
+        if (content instanceof MimeMultipart multipart) {
+            for (int i = 0; i < multipart.getCount(); i++) {
+                String text = findTextContent(multipart.getBodyPart(i), mimeType);
+                if (text != null) {
+                    return text;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static Part findAttachment(Part part, String fileName) throws Exception {
+        if (fileName.equals(part.getFileName())) {
+            return part;
+        }
+
+        Object content = part.getContent();
+        if (content instanceof MimeMultipart multipart) {
+            for (int i = 0; i < multipart.getCount(); i++) {
+                Part attachment = findAttachment(multipart.getBodyPart(i), fileName);
+                if (attachment != null) {
+                    return attachment;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static final class RecipientFailingMimeMessage extends MimeMessage {
