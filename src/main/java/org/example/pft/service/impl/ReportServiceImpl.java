@@ -20,8 +20,11 @@ import java.math.RoundingMode;
 import java.time.Month;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Service
 @AllArgsConstructor
@@ -125,8 +128,11 @@ public class ReportServiceImpl implements ReportService {
         User user = currentUserHelper.getCurrentUser();
         Long userId = user.getId();
 
-        BigDecimal incomeByMonth = getTotalByType(userId,month,year,CategoryType.INCOME);
-        BigDecimal expenseByMonth = getTotalByType(userId,month,year,CategoryType.EXPENSE);
+        Map<Integer, Map<CategoryType, BigDecimal>> totalsByMonth =
+                getMonthlyTotalsByYear(userId, year);
+
+        BigDecimal incomeByMonth = getMonthlyTotal(totalsByMonth, month, CategoryType.INCOME);
+        BigDecimal expenseByMonth = getMonthlyTotal(totalsByMonth, month, CategoryType.EXPENSE);
 
         String monthName = Month.of(month)
                 .getDisplayName(TextStyle.FULL, Locale.ENGLISH);
@@ -140,8 +146,8 @@ public class ReportServiceImpl implements ReportService {
         List<ChartData> charts = new ArrayList<>();
         for(int i = 1; i<= 12; i++){
             String monthChart = parseMonthToString(i);
-            BigDecimal incomeOfChart = getTotalByType(userId,i,year,CategoryType.INCOME);
-            BigDecimal expenseOfChart = getTotalByType(userId,i,year,CategoryType.EXPENSE);
+            BigDecimal incomeOfChart = getMonthlyTotal(totalsByMonth, i, CategoryType.INCOME);
+            BigDecimal expenseOfChart = getMonthlyTotal(totalsByMonth, i, CategoryType.EXPENSE);
 
             ChartData chart = new ChartData(monthChart,incomeOfChart,expenseOfChart);
             charts.add(chart);
@@ -154,6 +160,27 @@ public class ReportServiceImpl implements ReportService {
 
         return data;
 
+    }
+
+    private Map<Integer, Map<CategoryType, BigDecimal>> getMonthlyTotalsByYear(Long userId, Integer year) {
+        Map<Integer, Map<CategoryType, BigDecimal>> totalsByMonth = new HashMap<>();
+
+        transactionRepository.findMonthlyTotalsByYear(userId, year)
+                .forEach(total -> totalsByMonth
+                        .computeIfAbsent(total.getMonth(), ignored -> new EnumMap<>(CategoryType.class))
+                        .put(total.getType(), total.getTotal() == null ? BigDecimal.ZERO : total.getTotal()));
+
+        return totalsByMonth;
+    }
+
+    private BigDecimal getMonthlyTotal(
+            Map<Integer, Map<CategoryType, BigDecimal>> totalsByMonth,
+            Integer month,
+            CategoryType type
+    ) {
+        return totalsByMonth
+                .getOrDefault(month, Map.of())
+                .getOrDefault(type, BigDecimal.ZERO);
     }
 
     //Map theo Summary
