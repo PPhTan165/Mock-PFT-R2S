@@ -103,6 +103,50 @@ class CategoryControllerSecurityTest {
     }
 
     @Test
+    void getAll_withInvalidToken_shouldReturn401() throws Exception {
+        when(jwtService.isTokenValid("invalid-token"))
+                .thenReturn(false);
+
+        mockMvc.perform(get("/api/categories")
+                        .header("Authorization", "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.path").value("/api/categories"));
+
+        verify(jwtService).isTokenValid("invalid-token");
+        verify(userDetailsService, never()).loadUserByUsername(any());
+        verify(categoryService, never()).getAll();
+    }
+
+    @Test
+    void getAll_withValidToken_shouldReturn200() throws Exception {
+        when(jwtService.isTokenValid("valid-token"))
+                .thenReturn(true);
+        when(jwtService.extractEmail("valid-token"))
+                .thenReturn("user@example.com");
+        when(userDetailsService.loadUserByUsername("user@example.com"))
+                .thenReturn(org.springframework.security.core.userdetails.User
+                        .withUsername("user@example.com")
+                        .password("encoded-password")
+                        .authorities("ROLE_USER")
+                        .build());
+        when(categoryService.getAll())
+                .thenReturn(getAllResponse);
+
+        mockMvc.perform(get("/api/categories")
+                        .header("Authorization", "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.INCOME[0].id").value(1))
+                .andExpect(jsonPath("$.data.EXPENSE[0].id").value(2));
+
+        verify(jwtService).isTokenValid("valid-token");
+        verify(jwtService).extractEmail("valid-token");
+        verify(userDetailsService).loadUserByUsername("user@example.com");
+        verify(categoryService).getAll();
+    }
+
+    @Test
     @WithMockUser
     void getAll_withAuthenticatedUser_shouldReturn200() throws Exception {
         when(categoryService.getAll())

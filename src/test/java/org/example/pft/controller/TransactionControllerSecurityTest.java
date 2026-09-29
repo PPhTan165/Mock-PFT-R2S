@@ -120,6 +120,67 @@ class TransactionControllerSecurityTest {
     }
 
     @Test
+    void create_withInvalidToken_shouldReturn401() throws Exception {
+        when(jwtService.isTokenValid("invalid-token"))
+                .thenReturn(false);
+
+        mockMvc.perform(post("/api/transactions")
+                        .header("Authorization", "Bearer invalid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "amount": 125000.50,
+                    "note": "Lunch",
+                    "categoryId": 20,
+                    "date": "2026-09-07"
+                }
+                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.path").value("/api/transactions"));
+
+        verify(jwtService).isTokenValid("invalid-token");
+        verify(userDetailsService, never()).loadUserByUsername(any());
+        verify(transactionService, never()).create(any(TransactionRequest.class));
+    }
+
+    @Test
+    void create_withValidToken_shouldReturn201() throws Exception {
+        when(jwtService.isTokenValid("valid-token"))
+                .thenReturn(true);
+        when(jwtService.extractEmail("valid-token"))
+                .thenReturn("user@example.com");
+        when(userDetailsService.loadUserByUsername("user@example.com"))
+                .thenReturn(org.springframework.security.core.userdetails.User
+                        .withUsername("user@example.com")
+                        .password("encoded-password")
+                        .authorities("ROLE_USER")
+                        .build());
+        when(transactionService.create(any(TransactionRequest.class)))
+                .thenReturn(createResponse);
+
+        mockMvc.perform(post("/api/transactions")
+                        .header("Authorization", "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "amount": 125000.50,
+                    "note": "Lunch",
+                    "categoryId": 20,
+                    "date": "2026-09-07"
+                }
+                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(100));
+
+        verify(jwtService).isTokenValid("valid-token");
+        verify(jwtService).extractEmail("valid-token");
+        verify(userDetailsService).loadUserByUsername("user@example.com");
+        verify(transactionService).create(any(TransactionRequest.class));
+    }
+
+    @Test
     @WithMockUser
     void create_withAuthenticatedUser_shouldReturn201() throws Exception {
         when(transactionService.create(any(TransactionRequest.class)))
