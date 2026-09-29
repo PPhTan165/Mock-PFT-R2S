@@ -1,0 +1,66 @@
+package org.example.pft.controller;
+
+import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
+import org.example.pft.dto.email.EmailExportRequest;
+import org.example.pft.dto.email.EmailExportResponse;
+import org.example.pft.dto.report.*;
+import org.example.pft.dto.report.monthly.MonthlyData;
+import org.example.pft.dto.report.monthly.MonthlyRequest;
+import org.example.pft.dto.report.category.ReportCategoryData;
+import org.example.pft.dto.report.pdf.PdfExportRequest;
+import org.example.pft.dto.report.summary.SummaryData;
+import org.example.pft.service.PdfExportService;
+import org.example.pft.service.ReportEmailService;
+import org.example.pft.service.ReportService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("api/reports")
+@AllArgsConstructor
+public class ReportController {
+    private final ReportService reportService;
+    private final PdfExportService pdfExportService;
+    private final ReportEmailService reportEmailService;
+
+    @GetMapping("/category")
+    public ResponseEntity<ReportResponse<ReportCategoryData>> showReportCategory(
+            @Valid @ModelAttribute ReportRequest request){
+        return ResponseEntity.ok().body(reportService
+                .showReportCategory(request.getMonth(),request.getYear(),request.getType()));
+    }
+
+    @GetMapping("/monthly")
+    public ResponseEntity<ReportResponse<MonthlyData>> showMonthly(
+            @Valid @ModelAttribute MonthlyRequest request
+            ){
+        return ResponseEntity.ok().body(reportService.showMonthly(request.getMonth(),request.getYear()));
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<ReportResponse<SummaryData>> showSummary(
+            @Valid @ModelAttribute MonthlyRequest request
+    ){
+        return ResponseEntity.ok().body(reportService.showSummary(request.getMonth(),request.getYear()));
+    }
+
+    @PostMapping("/export/pdf")
+    public ResponseEntity<ReportResponse<String>> exportPDF(
+            @Valid @RequestBody PdfExportRequest request
+    ){
+        return ResponseEntity.ok().body(pdfExportService.exportPDF(request));
+    }
+
+    @PostMapping("/export/email")
+    public ResponseEntity<EmailExportResponse> exportEmail(
+            @Valid @RequestBody EmailExportRequest request
+    ){
+        return ResponseEntity.ok().body(reportEmailService.sendSummaryReport(request));
+    }
+}
