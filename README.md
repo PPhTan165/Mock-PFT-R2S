@@ -233,14 +233,6 @@ Runtime configuration is defined in `src/main/resources/application.properties`.
 | `MAIL_USERNAME` | SMTP username. Used by OTP and report email delivery. | Yes | `your-account@example.com` |
 | `MAIL_PASSWORD` | SMTP password or app password. | Yes | `app-specific-password` |
 
-For local testing only, you can use this temporary JWT secret:
-
-```text
-dW5pdC10ZXN0LXNlY3JldC1rZXktMzItYnl0ZXMhISE=
-```
-
-For a real development machine, generate your own value and keep it outside Git.
-
 JWT defaults:
 
 | Property | Value |
@@ -253,6 +245,14 @@ Generate a development JWT secret in PowerShell:
 ```powershell
 [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 ```
+
+Generate a development JWT secret from CMD:
+
+```bat
+powershell -NoProfile -Command "[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))"
+```
+
+Copy the generated value into `SECRET_KEY`. Generate a different value for each developer machine or environment.
 
 Set local environment variables before starting the backend.
 
@@ -273,7 +273,7 @@ Command Prompt (CMD):
 set DB_URL=jdbc:mysql://localhost:3306/pft?useSSL=false^&allowPublicKeyRetrieval=true
 set DB_USERNAME=pft_user
 set DB_PASSWORD=<database-password>
-set SECRET_KEY=dW5pdC10ZXN0LXNlY3JldC1rZXktMzItYnl0ZXMhISE=
+set SECRET_KEY=<generated-base64-secret>
 set MAIL_USERNAME=<gmail-address>
 set MAIL_PASSWORD=<gmail-app-password>
 ```
@@ -395,7 +395,7 @@ cd path\to\Mock-PFT-R2S
 set DB_URL=jdbc:mysql://localhost:3306/pft?useSSL=false^&allowPublicKeyRetrieval=true
 set DB_USERNAME=pft_user
 set DB_PASSWORD=<database-password>
-set SECRET_KEY=dW5pdC10ZXN0LXNlY3JldC1rZXktMzItYnl0ZXMhISE=
+set SECRET_KEY=<generated-base64-secret>
 set MAIL_USERNAME=<gmail-address>
 set MAIL_PASSWORD=<gmail-app-password>
 ```
