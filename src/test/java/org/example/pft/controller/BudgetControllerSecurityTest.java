@@ -109,6 +109,67 @@ class BudgetControllerSecurityTest {
     }
 
     @Test
+    void create_withInvalidToken_shouldReturn401() throws Exception {
+        when(jwtService.isTokenValid("invalid-token"))
+                .thenReturn(false);
+
+        mockMvc.perform(post("/api/budgets")
+                        .header("Authorization", "Bearer invalid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "categoryId": 20,
+                    "amount": 1000000,
+                    "month": 9,
+                    "year": 2026
+                }
+                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.path").value("/api/budgets"));
+
+        verify(jwtService).isTokenValid("invalid-token");
+        verify(userDetailsService, never()).loadUserByUsername(any());
+        verify(budgetService, never()).create(any(CreateBudgetRequest.class));
+    }
+
+    @Test
+    void create_withValidToken_shouldReturn201() throws Exception {
+        when(jwtService.isTokenValid("valid-token"))
+                .thenReturn(true);
+        when(jwtService.extractEmail("valid-token"))
+                .thenReturn("user@example.com");
+        when(userDetailsService.loadUserByUsername("user@example.com"))
+                .thenReturn(org.springframework.security.core.userdetails.User
+                        .withUsername("user@example.com")
+                        .password("encoded-password")
+                        .authorities("ROLE_USER")
+                        .build());
+        when(budgetService.create(any(CreateBudgetRequest.class)))
+                .thenReturn(budgetResponse);
+
+        mockMvc.perform(post("/api/budgets")
+                        .header("Authorization", "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "categoryId": 20,
+                    "amount": 1000000,
+                    "month": 9,
+                    "year": 2026
+                }
+                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(200));
+
+        verify(jwtService).isTokenValid("valid-token");
+        verify(jwtService).extractEmail("valid-token");
+        verify(userDetailsService).loadUserByUsername("user@example.com");
+        verify(budgetService).create(any(CreateBudgetRequest.class));
+    }
+
+    @Test
     @WithMockUser
     void create_withAuthenticatedUser_shouldReturn201() throws Exception {
         when(budgetService.create(any(CreateBudgetRequest.class)))
@@ -171,6 +232,30 @@ class BudgetControllerSecurityTest {
                 """))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.success").value(false));
+
+        verify(budgetService).create(any(CreateBudgetRequest.class));
+    }
+
+    @Test
+    @WithMockUser
+    void create_whenCategoryNotOwnedByCurrentUser_shouldReturn404() throws Exception {
+        when(budgetService.create(any(CreateBudgetRequest.class)))
+                .thenThrow(new ResourceNotFoundException("Category not found with id: 99"));
+
+        mockMvc.perform(post("/api/budgets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "categoryId": 99,
+                    "amount": 1000000,
+                    "month": 9,
+                    "year": 2026
+                }
+                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Category not found with id: 99"))
+                .andExpect(jsonPath("$.data").doesNotExist());
 
         verify(budgetService).create(any(CreateBudgetRequest.class));
     }
