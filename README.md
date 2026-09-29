@@ -233,6 +233,14 @@ Runtime configuration is defined in `src/main/resources/application.properties`.
 | `MAIL_USERNAME` | SMTP username. Used by OTP and report email delivery. | Yes | `your-account@example.com` |
 | `MAIL_PASSWORD` | SMTP password or app password. | Yes | `app-specific-password` |
 
+For local testing only, you can use this temporary JWT secret:
+
+```text
+dW5pdC10ZXN0LXNlY3JldC1rZXktMzItYnl0ZXMhISE=
+```
+
+For a real development machine, generate your own value and keep it outside Git.
+
 JWT defaults:
 
 | Property | Value |
@@ -246,7 +254,9 @@ Generate a development JWT secret in PowerShell:
 [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 ```
 
-Set local environment variables before starting the backend:
+Set local environment variables before starting the backend.
+
+PowerShell:
 
 ```powershell
 $env:DB_URL = "jdbc:mysql://localhost:3306/pft?useSSL=false&allowPublicKeyRetrieval=true"
@@ -257,7 +267,28 @@ $env:MAIL_USERNAME = "<smtp-username>"
 $env:MAIL_PASSWORD = "<smtp-password>"
 ```
 
-Do not commit real secrets or SMTP credentials.
+Command Prompt (CMD):
+
+```bat
+set DB_URL=jdbc:mysql://localhost:3306/pft?useSSL=false^&allowPublicKeyRetrieval=true
+set DB_USERNAME=pft_user
+set DB_PASSWORD=<database-password>
+set SECRET_KEY=dW5pdC10ZXN0LXNlY3JldC1rZXktMzItYnl0ZXMhISE=
+set MAIL_USERNAME=<gmail-address>
+set MAIL_PASSWORD=<gmail-app-password>
+```
+
+The CMD values above are available only in the current terminal window. Run the application from the same CMD window after setting them.
+
+To create the Gmail password used by `MAIL_PASSWORD`, open the Google Account App Passwords page:
+
+```text
+https://myaccount.google.com/apppasswords
+```
+
+Google requires 2-Step Verification before app passwords can be created. Create an app password for this backend/mail usage, then use the generated 16-character password as `MAIL_PASSWORD`. Do not use your normal Google account password.
+
+Do not commit real secrets, database passwords, or SMTP credentials.
 
 ### Database Setup with Flyway
 
@@ -307,12 +338,16 @@ ORDER BY installed_rank;
 
 ### Running the Application
 
-Clone the repository:
+#### Option 1: Run From the Repository with Maven Wrapper
+
+Clone the repository and move into the project root:
 
 ```powershell
 git clone https://github.com/PPhTan165/Mock-PFT-R2S.git
 cd Mock-PFT-R2S
 ```
+
+The project root is the folder that contains `pom.xml`, `mvnw.cmd`, `src/`, and `target/`.
 
 Start the backend with the Maven Wrapper:
 
@@ -327,6 +362,51 @@ On macOS or Linux:
 ```
 
 Verify startup by checking application logs for successful Flyway migration and Hibernate schema validation. No health endpoint, Swagger UI, or OpenAPI route is configured in the repository.
+
+#### Option 2: Run a Packaged JAR on Windows
+
+Place the packaged backend JAR in the project root so this path exists:
+
+```text
+target/PFT-0.0.1-SNAPSHOT.jar
+```
+
+Your folder should look like this:
+
+```text
+Mock-PFT-R2S/
+|-- target/
+|   `-- PFT-0.0.1-SNAPSHOT.jar
+|-- src/
+|-- pom.xml
+`-- mvnw.cmd
+```
+
+Open MySQL Workbench, MySQL Shell, or another MySQL client and create an empty database first:
+
+```sql
+CREATE DATABASE pft CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+```
+
+Then open CMD in the project root and configure the environment:
+
+```bat
+cd path\to\Mock-PFT-R2S
+set DB_URL=jdbc:mysql://localhost:3306/pft?useSSL=false^&allowPublicKeyRetrieval=true
+set DB_USERNAME=pft_user
+set DB_PASSWORD=<database-password>
+set SECRET_KEY=dW5pdC10ZXN0LXNlY3JldC1rZXktMzItYnl0ZXMhISE=
+set MAIL_USERNAME=<gmail-address>
+set MAIL_PASSWORD=<gmail-app-password>
+```
+
+Start Spring Boot from the same CMD window:
+
+```bat
+java -jar target\PFT-0.0.1-SNAPSHOT.jar
+```
+
+On first startup, Flyway creates the tables and seed data in the empty `pft` database. Hibernate then validates that the schema matches the JPA mappings.
 
 ## API Root Endpoint
 
