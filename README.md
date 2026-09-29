@@ -368,7 +368,7 @@ Verify startup by checking application logs for successful Flyway migration and 
 Place the packaged backend JAR in the project root so this path exists:
 
 ```text
-target/PFT-0.0.1-SNAPSHOT.jar
+target/PFT-1.0.0.jar
 ```
 
 Your folder should look like this:
@@ -376,7 +376,7 @@ Your folder should look like this:
 ```text
 Mock-PFT-R2S/
 |-- target/
-|   `-- PFT-0.0.1-SNAPSHOT.jar
+|   `-- PFT-1.0.0.jar
 |-- src/
 |-- pom.xml
 `-- mvnw.cmd
