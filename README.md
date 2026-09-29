@@ -1,148 +1,237 @@
-# PFT Personal Finance Tracker
+# Personal Finance Tracker (PFT)
 
-PFT is a Spring Boot backend for tracking personal income, expenses, budgets, reports, and user account security. It exposes REST APIs for client applications to register users, authenticate with JWT, manage categories and transactions, review dashboard summaries, generate financial reports, export PDFs, and email monthly reports.
+## Project Overview
 
-The project is implemented as a layered backend application:
+Personal Finance Tracker is a Spring Boot backend for managing personal income, expenses, budgets, reports, and account security. It provides REST APIs for user registration, JWT authentication, user-owned categories and transactions, dashboard summaries, monthly financial reports, PDF export, email report delivery, and notification settings.
 
-```text
-HTTP request
-  -> Spring Security JWT filter
-  -> REST controller
-  -> service layer
-  -> Spring Data JPA repository
-  -> MySQL database
+The backend is responsible for authentication, authorization, financial data persistence, business rule validation, report calculation, local PDF generation, and SMTP-based email delivery.
+
+## E-R Diagram
+
+The schema is managed by Flyway migrations in `src/main/resources/db/migration`.
+
+```mermaid
+erDiagram
+    USERS {
+        BIGINT id PK
+        VARCHAR full_name
+        VARCHAR email UK
+        VARCHAR password
+        VARCHAR avatar
+        TIMESTAMP created_at
+        INT failed_login_attempts
+        DATETIME locked_until
+        TINYINT two_factor_enabled
+    }
+
+    ROLES {
+        BIGINT id PK
+        VARCHAR name
+    }
+
+    USER_ROLES {
+        BIGINT user_id PK, FK
+        BIGINT role_id PK, FK
+    }
+
+    CATEGORY_ICONS {
+        BIGINT id PK
+        VARCHAR category_name UK
+        VARCHAR emoji
+        VARCHAR icon_url
+        TIMESTAMP created_at
+    }
+
+    CATEGORIES {
+        BIGINT id PK
+        BIGINT category_icon_id FK
+        BIGINT user_id FK
+        ENUM type
+        TIMESTAMP created_at
+    }
+
+    TRANSACTIONS {
+        BIGINT id PK
+        DECIMAL amount
+        VARCHAR note
+        BIGINT category_id FK
+        BIGINT user_id FK
+        DATE date
+        TIMESTAMP created_at
+    }
+
+    BUDGETS {
+        BIGINT id PK
+        DECIMAL amount
+        BIGINT category_id FK
+        BIGINT user_id FK
+        TINYINT month
+        SMALLINT year
+        TIMESTAMP created_at
+    }
+
+    NOTIFICATION_SETTINGS {
+        BIGINT id PK
+        BIGINT user_id FK
+        TINYINT daily_reminder
+        TINYINT tip_enabled
+        TINYINT budget_alert
+        TIMESTAMP created_at
+    }
+
+    TWO_FACTOR_CHALLENGES {
+        BIGINT id PK
+        BIGINT user_id FK
+        VARCHAR challenge_id UK
+        VARCHAR otp_code
+        DATETIME expires_at
+        INT attempt_count
+        DATETIME last_sent_at
+        TINYINT used
+        DATETIME created_at
+    }
+
+    USERS ||--o{ USER_ROLES : has
+    ROLES ||--o{ USER_ROLES : assigned
+    USERS ||--o{ CATEGORIES : owns
+    CATEGORY_ICONS ||--o{ CATEGORIES : labels
+    USERS ||--o{ TRANSACTIONS : records
+    CATEGORIES ||--o{ TRANSACTIONS : classifies
+    USERS ||--o{ BUDGETS : owns
+    CATEGORIES ||--o{ BUDGETS : limits
+    USERS ||--o{ NOTIFICATION_SETTINGS : configures
+    USERS ||--o{ TWO_FACTOR_CHALLENGES : receives
 ```
 
-## Table of Contents
-
-- [Key Features](#key-features)
-- [Technology Stack](#technology-stack)
-- [System Architecture](#system-architecture)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Environment Configuration](#environment-configuration)
-- [Database Setup and Flyway Migrations](#database-setup-and-flyway-migrations)
-- [Installation and Local Startup](#installation-and-local-startup)
-- [Authentication and Authorization](#authentication-and-authorization)
-- [Core Business Workflows](#core-business-workflows)
-- [API Reference](#api-reference)
-- [Business Rules and Usage Notes](#business-rules-and-usage-notes)
-- [Error Handling](#error-handling)
-- [Testing](#testing)
-- [Troubleshooting](#troubleshooting)
-- [Development Conventions](#development-conventions)
-- [Known Limitations](#known-limitations)
-
-## Key Features
-
-- User registration with default `USER` role assignment.
-- Password login with JWT issuance.
-- Login failure tracking and temporary account lockout.
-- Optional email-based two-factor authentication.
-- JWT-protected APIs for categories, transactions, dashboard, budgets, reports, notifications, and profile management.
-- User-owned categories and transactions.
-- Monthly budget management for expense categories.
-- Dashboard totals, pie chart data, and recent transaction feed.
-- Category, monthly, and summary financial reports.
-- Local PDF report export with optional charts and top-expense sections.
-- Email delivery of summary reports with PDF attachments.
-- Notification settings for daily reminders, tips, and budget alerts.
-
-## Technology Stack
+## Tech Stack
 
 | Area | Technology |
 |---|---|
 | Language | Java 17 |
 | Framework | Spring Boot 4.1.0 |
-| Web | `spring-boot-starter-webmvc` |
-| Security | Spring Security, method security |
-| Persistence | Spring Data JPA, Hibernate managed by Spring Boot |
-| Database | MySQL via `mysql-connector-j` runtime dependency |
-| Migrations | Flyway via `spring-boot-starter-flyway` and `flyway-mysql` |
-| Test database | H2, configured in `src/test/resources/application.properties` |
-| JWT | JJWT `0.12.5` |
-| PDF generation | OpenPDF `2.0.3` |
-| Chart generation | JFreeChart `1.5.6` |
+| Web | Spring Web MVC |
+| Persistence | Spring Data JPA, Hibernate |
+| Security | Spring Security, method security, BCrypt |
+| Authentication | JWT with JJWT 0.12.5 |
+| Database | MySQL |
+| Migrations | Flyway, Flyway MySQL |
 | Email | Spring Boot Mail, JavaMailSender |
+| PDF export | OpenPDF 2.0.3 |
+| Chart generation | JFreeChart 1.5.6 |
+| Validation | Jakarta Bean Validation |
 | Boilerplate reduction | Lombok |
-| Testing | JUnit 5, Mockito, Spring MVC test, Spring Security test |
-| Coverage | JaCoCo Maven plugin `0.8.15` |
-| Build tool | Maven Wrapper, Maven `3.9.16` |
+| Test database | H2 |
+| Testing | JUnit 5, Mockito, MockMvc, Spring Security Test |
+| Coverage | JaCoCo Maven Plugin 0.8.15 |
+| Build | Maven Wrapper, Maven 3.9.16 |
 
-Spring Boot manages versions for most Spring starters, Spring Security, Spring Data JPA, MySQL connector, H2, Flyway, Lombok, and test libraries.
+## Modules
 
-## System Architecture
-
-PFT uses a conventional Spring Boot package layout:
-
-```text
-src/main/java/org/example/pft
-|-- controller    # REST API endpoints
-|-- dto           # request and response payloads
-|-- entity        # JPA entities
-|-- enums         # CategoryType and ReportType
-|-- exception     # API error model and exception handlers
-|-- helper        # current-user and PDF helper utilities
-|-- repository    # Spring Data JPA repositories and JPQL queries
-|-- security      # JWT, user details, entry point, access denied handler
-`-- service       # business interfaces, implementations, PDF renderers
-```
-
-Main responsibilities:
-
-| Layer | Responsibility |
+| Module | Description |
 |---|---|
-| Controller | Accepts HTTP requests, applies validation, delegates to services, returns DTO responses. |
-| Security | Validates bearer tokens, loads authenticated users, enforces authentication and method-level role checks. |
-| Service | Implements business rules, resource ownership checks, report calculations, PDF/email workflows. |
-| Repository | Encapsulates JPA persistence and user-scoped financial queries. |
-| DTO | Defines API request and response contracts plus Bean Validation rules. |
-| Exception handling | Converts validation, business, authentication, authorization, and not-found errors into JSON responses. |
-| PDF/report components | Render report data and optional charts into OpenPDF documents. |
+| Authentication | Registration, login, JWT issuance, account lockout, and email-based 2FA. |
+| User Management | Profile update, avatar update, and 2FA preference update. |
+| Category Management | User-owned income and expense categories backed by seeded category icons. |
+| Transaction Management | Creation and paginated history lookup for user transactions. |
+| Dashboard | Monthly income, expense, balance, pie chart data, and recent transactions. |
+| Budget Management | Monthly budget management for expense categories. |
+| Financial Reports | Summary, monthly, and category breakdown reports. |
+| PDF Export | Local PDF generation for summary, monthly, and category reports. |
+| Report Email Delivery | Summary PDF generation in memory and email attachment delivery. |
+| Notification Settings | Daily reminder, tips, and budget alert preferences. |
 
-## Project Structure
+## Features
 
-Important files and directories:
+### Authentication and User Management
 
-```text
-pom.xml
-mvnw / mvnw.cmd
-src/main/resources/application.properties
-src/main/resources/db/migration/
-  V1__create_schema.sql
-  V2__seed_roles.sql
-  V3__seed_category_icons.sql
-src/test/resources/application.properties
-src/test/java/org/example/pft/
-reports/
-target/site/jacoco/
-target/surefire-reports/
-```
+- Users can register with `email`, `password`, and `fullName`.
+- Passwords must be at least 8 characters and contain both letters and numbers.
+- Registered users receive the default `USER` role and a notification settings row.
+- Login returns a JWT immediately when 2FA is disabled.
+- If 2FA is enabled on the user profile, login returns a `challengeId` instead of a token.
+- Failed login attempts are counted. The account is locked for 30 minutes after 5 failed attempts.
+- JWTs include the user's email as subject, configured issuer, expiration, and role claims.
+- `PUT /api/user/profile` updates full name, avatar, and the `twoFactorEnabled` flag. This endpoint requires `ROLE_USER`.
 
-The `reports/` directory is used by the PDF export feature at runtime. Generated files are named with the current user ID, report type, month, and year.
+### Category Management
 
-## Prerequisites
+- Categories are owned by the authenticated user.
+- Supported category types are `INCOME` and `EXPENSE`.
+- Category names are selected from seeded `category_icons`.
+- When `emoji` is blank, the service looks up the icon by category `name`.
+- When `emoji` is provided, the service looks up the icon by emoji.
+- Duplicate category names are rejected per user.
+
+### Transaction Management
+
+- Users can create transactions with positive amount, optional note, category, and date.
+- The selected category must belong to the authenticated user.
+- Transaction history is filtered by date range, type, and optional category.
+- Pagination defaults to page `1` and size `10`; size is limited to `20`.
+- History requires `startDate`, `endDate`, and `type`.
+
+### Dashboard
+
+- Dashboard data is calculated for a selected month and year.
+- If month or year is omitted, the request DTO defaults to the current month and year.
+- The response includes total income, total expense, balance, pie chart data, and 3 recent transactions.
+- Recent expense amounts are returned as negative values; income amounts are returned as positive values.
+
+### Budget Management
+
+- Budgets are scoped to the authenticated user.
+- Budgets can only be created for `EXPENSE` categories.
+- Creating a budget is an upsert by user, category, month, and year.
+- Updating and deleting budgets uses user ownership checks; another user's budget is treated as not found.
+
+### Financial Reports
+
+- Category reports group totals by category for a selected `INCOME` or `EXPENSE` type and calculate percentages.
+- Monthly reports return 12 months of income and expense chart data for the selected year, plus a selected month summary.
+- Summary reports return monthly income, expense, balance, and the top 3 expense categories.
+- Empty totals are normalized to `0`.
+
+### PDF Export
+
+- PDF export supports `SUMMARY`, `MONTHLY`, and `CATEGORY`.
+- The default report type is `SUMMARY` when the field is omitted or blank.
+- Exported PDFs are written under `reports/`.
+- File names follow `<userId>_<reportType>_<month-short-name>_<year>.pdf`.
+- Optional `includeChart` and `includeTopExpenses` flags control additional PDF sections where supported.
+
+### Report Email Delivery
+
+- Email export creates a summary PDF in memory and sends it as an attachment.
+- The email request requires `month`, `year`, and destination `email`.
+- SMTP settings must be configured for OTP emails and report delivery.
+
+### Notification Settings
+
+- Users can read and update notification settings.
+- Supported flags are `dailyReminder`, `tipsEnabled`, and `budgetAlert`.
+- The application-created defaults are all `false`.
+
+## Installation & Run
+
+### Prerequisites
 
 - JDK 17.
-- MySQL server with an empty database for a fresh local setup.
-- Environment variables for database, JWT, and SMTP configuration.
-- Internet access for Maven dependency resolution on first build.
-- Gmail SMTP credentials or compatible SMTP settings if using OTP or email report features.
+- MySQL 8.x. The migrations use `utf8mb4_0900_ai_ci`, which is a MySQL 8 collation.
+- Maven Wrapper from this repository. It downloads Maven 3.9.16 when needed.
+- SMTP credentials for login OTP and report email workflows.
 
-No Docker Compose, frontend application, Swagger UI, or OpenAPI specification is configured in this repository.
-
-## Environment Configuration
+### Environment Configuration
 
 Runtime configuration is defined in `src/main/resources/application.properties`.
 
-| Variable | Purpose | Required | Example |
-|---|---|---:|---|
-| `DB_URL` | JDBC URL for the MySQL database. Defaults to local `pft` database if omitted. | No | `jdbc:mysql://localhost:3306/pft?useSSL=false&allowPublicKeyRetrieval=true` |
+| Variable | Purpose | Required | Safe example value |
+|---|---|---|---|
+| `DB_URL` | JDBC URL for the MySQL database. Defaults to local `pft`. | No | `jdbc:mysql://localhost:3306/pft?useSSL=false&allowPublicKeyRetrieval=true` |
 | `DB_USERNAME` | MySQL username. Defaults to `root`. | No | `pft_user` |
-| `DB_PASSWORD` | MySQL password. Defaults to empty string. | No | `change-me` |
-| `SECRET_KEY` | Base64-encoded JWT signing key. Must decode to at least 32 bytes. | Yes | `base64-encoded-32-byte-secret` |
-| `MAIL_USERNAME` | SMTP username. Used for OTP and report emails. | Yes for email features | `your-account@example.com` |
-| `MAIL_PASSWORD` | SMTP password or app password. | Yes for email features | `app-specific-password` |
+| `DB_PASSWORD` | MySQL password. Defaults to an empty value. | No | `change-me` |
+| `SECRET_KEY` | Base64 JWT signing key. Must decode to at least 32 bytes. | Yes | `base64-encoded-32-byte-secret` |
+| `MAIL_USERNAME` | SMTP username. Used by OTP and report email delivery. | Yes | `your-account@example.com` |
+| `MAIL_PASSWORD` | SMTP password or app password. | Yes | `app-specific-password` |
 
 JWT defaults:
 
@@ -151,141 +240,81 @@ JWT defaults:
 | `app.jwt.expiration-seconds` | `3600` |
 | `app.jwt.issuer` | `pft` |
 
-Generate a development JWT secret without committing it:
+Generate a development JWT secret in PowerShell:
 
 ```powershell
 [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 ```
 
-Then set it as an environment variable before starting the application.
+Set local environment variables before starting the backend:
 
 ```powershell
-$env:SECRET_KEY = "<base64-encoded-secret>"
 $env:DB_URL = "jdbc:mysql://localhost:3306/pft?useSSL=false&allowPublicKeyRetrieval=true"
 $env:DB_USERNAME = "pft_user"
 $env:DB_PASSWORD = "<database-password>"
+$env:SECRET_KEY = "<base64-encoded-secret>"
 $env:MAIL_USERNAME = "<smtp-username>"
 $env:MAIL_PASSWORD = "<smtp-password>"
 ```
 
-Do not commit real secrets to `application.properties`.
+Do not commit real secrets or SMTP credentials.
 
-## Database Setup and Flyway Migrations
+### Database Setup with Flyway
 
-Flyway is enabled by default:
+Create an empty MySQL database before starting the application:
+
+```sql
+CREATE DATABASE pft CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+```
+
+Flyway is enabled by default, and Hibernate is configured with schema validation:
 
 ```properties
 spring.flyway.enabled=true
 spring.jpa.hibernate.ddl-auto=validate
 ```
 
-Hibernate validates the schema at startup. Flyway is responsible for creating and seeding the database.
+Hibernate validates the schema after Flyway has run. It does not create missing tables.
 
-### Migration Responsibilities
-
-| Migration | Responsibility |
+| Migration | Verified behavior |
 |---|---|
-| `V1__create_schema.sql` | Creates roles, category icons, users, categories, budgets, transactions, user roles, notification settings, and two-factor challenge tables. |
-| `V2__seed_roles.sql` | Inserts default roles `ADMIN` and `USER` if missing. |
-| `V3__seed_category_icons.sql` | Inserts default category icons if missing. |
+| `V1__create_schema.sql` | Creates the initial schema with 9 tables: `roles`, `category_icons`, `users`, `categories`, `budgets`, `transactions`, `user_roles`, `notification_settings`, and `two_factor_challenges`. |
+| `V2__seed_roles.sql` | Seeds 2 roles: `ADMIN` and `USER`. |
+| `V3__seed_category_icons.sql` | Seeds 12 category icons: Housing, Food, Shopping, Salary, Freelance, Investments, Other, Transportation, Entertainment, Health, Education, and Gifts. |
 
-### Default Roles
-
-Flyway seeds:
-
-- `ADMIN`
-- `USER`
-
-Newly registered users receive the `USER` role.
-
-### Default Category Icons
-
-Flyway seeds 12 category icon names. IDs are generated by MySQL auto-increment.
-
-| Category icon | `icon_url` |
-|---|---|
-| Housing | `https://cdn.example.com/icons/housing.png` |
-| Food | `https://cdn.example.com/icons/food.png` |
-| Shopping | `https://cdn.example.com/icons/shopping.png` |
-| Salary | `https://cdn.example.com/icons/salary.png` |
-| Freelance | `https://cdn.example.com/icons/freelance.png` |
-| Investments | `https://cdn.example.com/icons/investments.png` |
-| Other | `https://cdn.example.com/icons/other.png` |
-| Transportation | `https://cdn.example.com/icons/transportation.png` |
-| Entertainment | `https://cdn.example.com/icons/entertainment.png` |
-| Health | `https://cdn.example.com/icons/health.png` |
-| Education | `https://cdn.example.com/icons/education.png` |
-| Gifts | `https://cdn.example.com/icons/gifts.png` |
-
-The `cdn.example.com` URLs are placeholder asset URLs in the seed data.
-
-### Scenario A: Fresh Database
+Fresh database:
 
 1. Create an empty MySQL database.
+2. Configure the environment variables.
+3. Start the application.
+4. Flyway automatically runs all pending migrations.
+5. Hibernate validates the resulting schema.
 
-   ```sql
-   CREATE DATABASE pft CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-   ```
+Existing database:
 
-2. Configure `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `SECRET_KEY`, `MAIL_USERNAME`, and `MAIL_PASSWORD`.
+- An existing schema may require a verified Flyway baseline before migrations can be enabled safely.
+- The development database was previously baselined at version 3 because its schema and seed data already existed.
+- Do not treat baseline version 3 as correct for every database.
+- Do not enable automatic baselining globally without proving that the existing database matches the skipped migrations.
 
-3. Start the application with the Maven Wrapper.
+Check Flyway history:
 
-   ```powershell
-   .\mvnw.cmd spring-boot:run
-   ```
-
-4. Let Spring Boot run Flyway automatically.
-
-5. Verify that tables such as `users`, `transactions`, `budgets`, and `two_factor_challenges` exist.
-
-6. Verify that roles and category icons were inserted.
-
-   ```sql
-   SELECT name FROM roles ORDER BY name;
-   SELECT category_name, icon_url FROM category_icons ORDER BY id;
-   ```
-
-Do not manually execute the migrations during normal startup. Flyway runs them automatically.
-
-### Scenario B: Existing Database
-
-An existing database may require a Flyway baseline before migrations can be enabled safely. The development database for this project was previously baselined at version 3 because its schema and seed data already matched `V1` through `V3`.
-
-Do not treat baseline version 3 as a universal rule for arbitrary databases. An incorrect baseline can hide missing tables or seed data.
-
-Recommended verification before baselining an existing database:
-
-1. Compare the existing schema against `V1__create_schema.sql`.
-2. Confirm `ADMIN` and `USER` roles exist.
-3. Confirm all 12 category icons exist.
-4. Confirm constraints and foreign keys match the migration files.
-5. Create a database backup before changing Flyway metadata.
-6. Apply an explicit baseline only after the database is proven equivalent to the skipped migrations.
-
-The default application configuration should not silently baseline arbitrary existing databases. `baseline-on-migrate=true` is not enabled in this project.
-
-## Installation and Local Startup
-
-Clone the repository and move into the project directory:
-
-```powershell
-git clone <repository-url>
-cd PFT
+```sql
+SELECT version, description, success, installed_on
+FROM flyway_schema_history
+ORDER BY installed_rank;
 ```
 
-Set environment variables:
+### Running the Application
+
+Clone the repository:
 
 ```powershell
-$env:DB_URL = "jdbc:mysql://localhost:3306/pft?useSSL=false&allowPublicKeyRetrieval=true"
-$env:DB_USERNAME = "pft_user"
-$env:DB_PASSWORD = "<database-password>"
-$env:SECRET_KEY = "<base64-encoded-secret>"
-$env:MAIL_USERNAME = "<smtp-username>"
-$env:MAIL_PASSWORD = "<smtp-password>"
+git clone https://github.com/PPhTan165/Mock-PFT-R2S.git
+cd Mock-PFT-R2S
 ```
 
-Start the backend:
+Start the backend with the Maven Wrapper:
 
 ```powershell
 .\mvnw.cmd spring-boot:run
@@ -297,190 +326,130 @@ On macOS or Linux:
 ./mvnw spring-boot:run
 ```
 
-The application uses Spring Boot's default port unless overridden externally. Verify startup by calling a public endpoint such as registration or login, or by checking the startup logs for successful Flyway migration and Hibernate schema validation.
+Verify startup by checking application logs for successful Flyway migration and Hibernate schema validation. No health endpoint, Swagger UI, or OpenAPI route is configured in the repository.
 
-## Authentication and Authorization
+## API Root Endpoint
 
-### Security Model
+The application does not set `server.port`, so Spring Boot uses the default port unless overridden externally.
 
-`SecurityConfig` applies these rules:
-
-| Path | Rule |
+| Item | Value |
 |---|---|
-| `/api/auth/**` | Public |
-| All other endpoints | Authenticated request required |
-| `PUT /api/user/profile` | Authenticated request with `ROLE_USER` required |
+| Local base URL | `http://localhost:8080` |
+| Authentication base path | `/api/auth` |
+| Protected API base paths | `/api/user`, `/api/categories`, `/api/transactions`, `/api/dashboard`, `/api/budgets`, `/api/reports`, `/api/notifications/settings` |
 
-JWT credentials must be passed as a bearer token:
+Protected endpoints require:
 
 ```http
 Authorization: Bearer <accessToken>
 ```
 
-The JWT contains:
+## API Module Endpoints
 
-- issuer from `app.jwt.issuer`
-- subject as the user's email
-- issued-at and expiration timestamps
-- `roles` claim from the user's assigned roles
+### Authentication APIs
 
-The authentication filter ignores missing or invalid bearer tokens and lets Spring Security return the configured `401 Unauthorized` response for protected endpoints.
-
-### Registration
-
-`POST /api/auth/register` creates a user if the email is not already registered, assigns the default `USER` role, and creates notification settings for the user.
-
-Registration rules:
-
-- `email` is required and must be valid.
-- `password` is required, at least 8 characters, and must include both letters and numbers.
-- `fullName` is required.
-- Duplicate email returns `409 Conflict`.
-- Missing default `USER` role returns `404 Not Found`.
-
-### Login
-
-`POST /api/auth/login` validates email and password.
-
-Login failure rules:
-
-- Unknown email and wrong password return `422 Unprocessable Entity` with `Invalid email or password`.
-- Failed login attempts are counted.
-- On the fifth failed attempt, the account is locked for 30 minutes.
-- While locked, login returns a message with the remaining minutes.
-- A successful login after previous failures resets failed attempts and lock state.
-
-JWT issuance:
-
-- If two-factor authentication is disabled, login returns an access token immediately.
-- If two-factor authentication is enabled, login returns `challengeId` and `data: null`; the client must verify the OTP before receiving a JWT.
-
-### Two-Factor Authentication
-
-2FA is controlled by the user's profile field `twoFactorEnabled`.
-
-When enabled:
-
-1. Login creates or reuses a two-factor challenge.
-2. The system sends a 6-digit OTP by email.
-3. The client verifies the code with `POST /api/auth/2fa/verify`.
-4. A valid code marks the challenge as used and returns the JWT.
-
-2FA rules:
-
-| Rule | Value |
-|---|---|
-| OTP length | 6 digits |
-| OTP expiration | 5 minutes |
-| Max verification attempts | 5 |
-| Resend cooldown | 60 seconds |
-
-Failure cases:
-
-- Unknown challenge ID returns `404 Not Found`.
-- Used challenge returns `422 Unprocessable Entity`.
-- Expired code returns `422 Unprocessable Entity`.
-- Wrong code increments attempt count.
-- Reaching 5 attempts returns `422 Unprocessable Entity`.
-- Resend during cooldown returns a message with remaining seconds.
-
-## Core Business Workflows
-
-### Categories
-
-Categories are user-owned and typed as `INCOME` or `EXPENSE`.
-
-The category creation endpoint links a user category to one seeded `CategoryIcon`. If `emoji` is omitted or blank, the service looks up the icon by `name`. If `emoji` is supplied, the service looks up the icon by emoji. Duplicate category names are checked per user.
-
-### Transactions
-
-Transactions record an amount, note, category, date, and owner. Amounts are stored as positive values. The category type determines how totals are interpreted:
-
-- `INCOME` contributes to income totals.
-- `EXPENSE` contributes to expense totals.
-- Dashboard recent transactions display expenses as negative values and income as positive values.
-
-The transaction service verifies that the category belongs to the authenticated user before creating a transaction.
-
-### Budgets
-
-Budgets are monthly targets for expense categories only. The service rejects income categories with `Category type must be EXPENSE`.
-
-Budget create is an upsert by `(user, category, month, year)`: if a budget already exists for the same user, category, month, and year, its amount is replaced.
-
-Budget update and delete locate budgets with `findByIdAndUser`, so another user's budget is treated as not found.
-
-### Dashboard
-
-Dashboard data is computed for a month and year:
-
-- income total
-- expense total
-- balance as `income - expense`
-- pie chart data grouped by category and type
-- up to 3 recent transactions for that period
-
-### Reports
-
-Reports are scoped to the authenticated user.
-
-| Report | Behavior |
-|---|---|
-| Category report | Groups transaction totals by category for a selected `INCOME` or `EXPENSE` type and calculates category percentages. |
-| Monthly report | Returns 12 months of income and expense chart data for a year plus the selected month summary. |
-| Summary report | Returns income, expense, balance, and top 3 expense categories for the selected month. |
-
-Empty totals are normalized to `0`.
-
-### PDF Export
-
-PDF export supports `SUMMARY`, `MONTHLY`, and `CATEGORY` report types. The default report type is `SUMMARY` when omitted or blank.
-
-PDF files are written to `reports/` and named:
-
-```text
-<userId>_<reportType>_<month-short-name>_<year>.pdf
-```
-
-For example:
-
-```text
-2_summary_sep_2026.pdf
-```
-
-Optional flags:
-
-- `includeChart`
-- `includeTopExpenses`
-
-### Email Report Delivery
-
-Email export generates a summary PDF in memory and sends it as an attachment to the requested email address. It requires SMTP configuration and an authenticated user.
-
-## API Reference
-
-Base path examples assume the application is running locally on Spring Boot's configured port.
-
-### Authentication
-
-| Method | URL | Purpose | Auth |
+| Method | Endpoint | Description | Auth |
 |---|---|---|---|
-| `POST` | `/api/auth/register` | Register a new user. | Public |
-| `POST` | `/api/auth/login` | Authenticate with email and password. | Public |
-| `POST` | `/api/auth/2fa/verify` | Verify OTP and issue JWT. | Public |
-| `POST` | `/api/auth/2fa/resend` | Resend OTP for an active challenge. | Public |
+| `POST` | `/api/auth/register` | Register a user and create notification settings. | Public |
+| `POST` | `/api/auth/login` | Login with email and password. Returns JWT or 2FA challenge. | Public |
+| `POST` | `/api/auth/2fa/verify` | Verify a 6-digit OTP and issue JWT. | Public |
+| `POST` | `/api/auth/2fa/resend` | Resend OTP for an active challenge. Returns `204 No Content`. | Public |
 
-Register request:
+### User APIs
+
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `PUT` | `/api/user/profile` | Update full name, avatar, and 2FA preference. | JWT, `ROLE_USER` |
+
+### Category APIs
+
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/categories` | List current user's categories grouped by type. | JWT |
+| `GET` | `/api/categories?type=EXPENSE` | List current user's categories for one type. | JWT |
+| `POST` | `/api/categories` | Create a current-user category from a seeded category icon. | JWT |
+
+### Transaction APIs
+
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `POST` | `/api/transactions` | Create a transaction for a current-user category. | JWT |
+| `GET` | `/api/transactions/history` | Query transaction history by date range, type, optional category, page, and size. | JWT |
+
+### Dashboard APIs
+
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/dashboard?month=9&year=2026` | Get monthly income, expense, balance, pie chart data, and recent transactions. | JWT |
+
+### Budget APIs
+
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `POST` | `/api/budgets` | Create or replace a budget for an expense category. | JWT |
+| `GET` | `/api/budgets?month=9&year=2026` | List current user's budgets for a month and year. | JWT |
+| `PUT` | `/api/budgets/{id}` | Update a current-user budget amount. | JWT |
+| `DELETE` | `/api/budgets/{id}` | Delete a current-user budget. Returns `204 No Content`. | JWT |
+
+### Report APIs
+
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/reports/category?month=9&year=2026&type=EXPENSE` | Get category totals and percentages for `INCOME` or `EXPENSE`. | JWT |
+| `GET` | `/api/reports/monthly?month=9&year=2026` | Get 12-month chart data and selected month summary. | JWT |
+| `GET` | `/api/reports/summary?month=9&year=2026` | Get monthly income, expense, balance, and top expenses. | JWT |
+| `POST` | `/api/reports/export/pdf` | Generate a local PDF report. | JWT |
+| `POST` | `/api/reports/export/email` | Send a summary PDF report by email. | JWT |
+
+### Notification APIs
+
+| Method | Endpoint | Description | Auth |
+|---|---|---|---|
+| `GET` | `/api/notifications/settings` | Read current user's notification settings. | JWT |
+| `PUT` | `/api/notifications/settings` | Update current user's notification settings. | JWT |
+
+## Sample API Requests and Responses
+
+### 1. Register
+
+```http
+POST /api/auth/register
+Content-Type: application/json
+```
 
 ```json
 {
   "email": "user@example.com",
-  "password": "password123",
+  "password": "abcd1234",
   "fullName": "Example User"
 }
 ```
 
-Login success without 2FA:
+```json
+{
+  "success": true,
+  "message": "Registration successful",
+  "data": {
+    "userId": 1,
+    "fullName": "Example User",
+    "email": "user@example.com"
+  }
+}
+```
+
+### 2. Login Without 2FA
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "password": "abcd1234"
+}
+```
 
 ```json
 {
@@ -494,70 +463,42 @@ Login success without 2FA:
 }
 ```
 
-Login response with 2FA enabled:
+### 3. Login With 2FA Enabled
+
+When `twoFactorEnabled` is `true`, login returns a challenge first:
 
 ```json
 {
   "success": true,
   "message": "Two-factor verification required",
-  "challengeId": "<challenge-id>",
+  "challengeId": "b1c6b3f6-2bb8-4b5c-aad8-1a1d1d5a1111",
   "data": null
 }
 ```
 
-Verify 2FA request:
+Verify the email OTP:
+
+```http
+POST /api/auth/2fa/verify
+Content-Type: application/json
+```
 
 ```json
 {
-  "challengeId": "<challenge-id>",
+  "challengeId": "b1c6b3f6-2bb8-4b5c-aad8-1a1d1d5a1111",
   "code": "123456"
 }
 ```
 
-### User Profile
+Successful verification returns the same login success structure with `data.accessToken`.
 
-| Method | URL | Purpose | Auth |
-|---|---|---|---|
-| `PUT` | `/api/user/profile` | Update full name, avatar, and 2FA setting. | `ROLE_USER` |
+### 4. Create a Transaction
 
-Request:
-
-```json
-{
-  "fullName": "Updated User",
-  "avatar": "avatar.png",
-  "twoFactorEnabled": true
-}
+```http
+POST /api/transactions
+Authorization: Bearer <accessToken>
+Content-Type: application/json
 ```
-
-If `avatar` is omitted or blank, it is stored as `null`.
-
-### Categories
-
-| Method | URL | Purpose | Auth |
-|---|---|---|---|
-| `GET` | `/api/categories` | List current user's categories grouped by type. | JWT |
-| `GET` | `/api/categories?type=EXPENSE` | List current user's categories by type. | JWT |
-| `POST` | `/api/categories` | Create a category from a seeded icon. | JWT |
-
-Create category request:
-
-```json
-{
-  "name": "Food",
-  "type": "EXPENSE",
-  "emoji": ""
-}
-```
-
-### Transactions
-
-| Method | URL | Purpose | Auth |
-|---|---|---|---|
-| `POST` | `/api/transactions` | Create a transaction. | JWT |
-| `GET` | `/api/transactions/history` | Query transaction history. | JWT |
-
-Create transaction request:
 
 ```json
 {
@@ -568,26 +509,33 @@ Create transaction request:
 }
 ```
 
-History query:
-
-```http
-GET /api/transactions/history?startDate=2026-09-01&endDate=2026-09-30&type=EXPENSE&page=1&size=10
+```json
+{
+  "success": true,
+  "message": "Transaction added successfully",
+  "data": {
+    "id": 15,
+    "amount": 125000.50,
+    "note": "Lunch",
+    "category": {
+      "id": 20,
+      "name": "Food",
+      "type": "EXPENSE",
+      "icon": "<stored-icon-value>",
+      "iconUrl": "https://cdn.example.com/icons/food.png"
+    },
+    "date": "2026-09-07"
+  }
+}
 ```
 
-Optional query parameter:
+### 5. Create a Budget
 
-- `categoryId`
-
-### Budgets
-
-| Method | URL | Purpose | Auth |
-|---|---|---|---|
-| `POST` | `/api/budgets` | Create or replace a monthly budget for an expense category. | JWT |
-| `GET` | `/api/budgets?month=9&year=2026` | List budgets for a month and year. | JWT |
-| `PUT` | `/api/budgets/{id}` | Update a budget amount. | JWT |
-| `DELETE` | `/api/budgets/{id}` | Delete a budget. | JWT |
-
-Create budget request:
+```http
+POST /api/budgets
+Authorization: Bearer <accessToken>
+Content-Type: application/json
+```
 
 ```json
 {
@@ -598,147 +546,84 @@ Create budget request:
 }
 ```
 
-### Dashboard
-
-| Method | URL | Purpose | Auth |
-|---|---|---|---|
-| `GET` | `/api/dashboard?month=9&year=2026` | Get income, expense, balance, pie chart data, and recent transactions. | JWT |
-
-`month` and `year` default to the current month and year if omitted.
-
-### Reports
-
-| Method | URL | Purpose | Auth |
-|---|---|---|---|
-| `GET` | `/api/reports/category?month=9&year=2026&type=EXPENSE` | Category breakdown report. | JWT |
-| `GET` | `/api/reports/monthly?month=9&year=2026` | Monthly chart report for a year. | JWT |
-| `GET` | `/api/reports/summary?month=9&year=2026` | Monthly summary report. | JWT |
-| `POST` | `/api/reports/export/pdf` | Generate a local PDF file. | JWT |
-| `POST` | `/api/reports/export/email` | Email a summary PDF report. | JWT |
-
-PDF export request:
-
 ```json
 {
-  "month": 9,
-  "year": 2026,
-  "reportType": "SUMMARY",
-  "includeChart": true,
-  "includeTopExpenses": true
+  "success": true,
+  "message": "Budget saved successfully",
+  "data": {
+    "id": 4,
+    "category": {
+      "id": 20,
+      "name": "Food",
+      "icon": "<stored-icon-value>",
+      "iconUrl": "https://cdn.example.com/icons/food.png"
+    },
+    "amount": 1000000,
+    "month": 9,
+    "year": 2026,
+    "type": "EXPENSE"
+  }
 }
 ```
 
-PDF export response:
+### 6. Request a Summary Report
+
+```http
+GET /api/reports/summary?month=9&year=2026
+Authorization: Bearer <accessToken>
+```
 
 ```json
 {
   "success": true,
-  "message": "summary report PDF generated successfully",
-  "data": "reports\\2_summary_sep_2026.pdf"
+  "message": "Monthly summary fetched successfully",
+  "data": {
+    "month": "September",
+    "year": 2026,
+    "income": 5000000,
+    "expense": 1250000,
+    "balance": 3750000,
+    "topExpenses": [
+      {
+        "category": "Food",
+        "icon": "<stored-icon-value>",
+        "iconUrl": "https://cdn.example.com/icons/food.png",
+        "amount": 750000,
+        "percentage": 60.00
+      }
+    ]
+  }
 }
 ```
 
-Email export request:
+## Important Usage Notes
 
-```json
-{
-  "month": 9,
-  "year": 2026,
-  "email": "recipient@example.com",
-  "includeChart": true,
-  "includeTopExpenses": true
-}
-```
-
-### Notification Settings
-
-| Method | URL | Purpose | Auth |
-|---|---|---|---|
-| `GET` | `/api/notifications/settings` | Read current user's notification settings. | JWT |
-| `PUT` | `/api/notifications/settings` | Update notification settings. | JWT |
-
-Update request:
-
-```json
-{
-  "dailyReminder": true,
-  "tipsEnabled": false,
-  "budgetAlert": true
-}
-```
-
-## Business Rules and Usage Notes
-
-- Supported category types are `INCOME` and `EXPENSE`.
-- Amounts are stored as positive values; category type controls income or expense interpretation.
-- Balance is calculated as income minus expenses.
-- Resource ownership is enforced through the current authenticated user.
-- Cross-user category or budget access is normally hidden as `404 Not Found`.
-- Transaction history requires `startDate`, `endDate`, and `type`.
-- Transaction history `startDate` must be before or equal to `endDate`.
-- Transaction history defaults to page `1` and size `10`, with maximum size `20`.
-- Reports default month/year to the current month/year where the DTO defines defaults.
-- PDF and email export require month and year. Valid year range is `1900..9999`.
-- Budget create requires an expense category. Income categories are rejected.
-- Budget list defaults month/year to current values if omitted.
-- Registration creates notification settings with all three flags set to `false`.
-- The migration default for `notification_settings.budget_alert` is `1`, but application-created settings use `false`.
-
-## Error Handling
-
-Application business and validation errors generally use this structure:
-
-```json
-{
-  "success": false,
-  "message": "Validation failed",
-  "errors": [
-    {
-      "field": "email",
-      "message": "Email is required"
-    }
-  ]
-}
-```
-
-Authentication and authorization failures use this structure:
-
-```json
-{
-  "timestamp": "2026-09-29T12:00:00Z",
-  "status": 401,
-  "error": "Unauthorized",
-  "message": "Unauthorized - Please login to access this resource",
-  "path": "/api/budgets"
-}
-```
-
-HTTP statuses implemented by the application:
-
-| Status | Source |
+| Area | Note |
 |---|---|
-| `200 OK` | Successful reads, updates, login, report export responses. |
-| `201 Created` | Category, budget, and transaction creation. |
-| `204 No Content` | Budget delete and 2FA resend success. |
-| `401 Unauthorized` | Missing or invalid authentication for protected endpoints. |
-| `403 Forbidden` | Authenticated user lacks required method-level role, currently used by `PUT /api/user/profile`. |
-| `404 Not Found` | `ResourceNotFoundException`, including hidden ownership failures. |
-| `409 Conflict` | Duplicate email/category conflicts and PDF file write conflicts. |
-| `422 Unprocessable Entity` | Bean validation failures and business validation errors. |
-| `500 Internal Server Error` | Email send failures mapped by `EmailSendException`. |
+| JWT | Protected endpoints require `Authorization: Bearer <accessToken>`. |
+| Account lockout | 5 failed login attempts lock the account for 30 minutes. |
+| 2FA | OTP codes are 6 digits, expire after 5 minutes, allow up to 5 verification attempts, and have a 60-second resend cooldown. |
+| Category ownership | Transactions and budgets validate category ownership against the current authenticated user. |
+| Category types | Only `INCOME` and `EXPENSE` are supported. |
+| Budget category | Budgets can only be created for `EXPENSE` categories. |
+| Budget upsert | Creating a budget for the same user, category, month, and year replaces the amount. |
+| Transaction history | Requires `startDate`, `endDate`, `type`, `page`, and `size`; defaults exist for page and size when omitted. |
+| Date range | Transaction history rejects `startDate` after `endDate`. |
+| Report periods | Dashboard, budget list, monthly report, and summary report default missing month/year to the current period. |
+| PDF export | `month` and `year` are required; valid report types are `SUMMARY`, `MONTHLY`, and `CATEGORY`. |
+| Email export | Always sends a summary PDF attachment, even though chart and top-expense flags can be included. |
+| Seed data | Category icon URLs are placeholder `cdn.example.com` values in the migration data. |
 
-Invalid Boolean JSON values are reported as validation errors with `Must be true or false` for the affected field when the field can be resolved.
+## Testing & Coverage
 
-## Testing
+The repository includes controller security tests, service tests, repository isolation tests, DTO validation tests, exception tests, JWT tests, helper tests, PDF renderer tests, and chart service tests.
 
-The test configuration uses H2:
+The test profile uses H2:
 
 ```properties
 spring.datasource.url=jdbc:h2:mem:pft_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=MONTH,YEAR;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
 spring.jpa.hibernate.ddl-auto=create-drop
 ```
-
-Automated tests should not depend on the developer's local MySQL database.
 
 Run the full test suite:
 
@@ -746,13 +631,13 @@ Run the full test suite:
 .\mvnw.cmd test
 ```
 
-Run selected test classes:
+Run one selected test class:
 
 ```powershell
-.\mvnw.cmd -Dtest=BudgetControllerSecurityTest,CategoryControllerSecurityTest,TransactionControllerSecurityTest test
+.\mvnw.cmd -Dtest=BudgetServiceImplTest test
 ```
 
-Run Maven verification and generate the JaCoCo report:
+Run Maven verification and generate JaCoCo reports:
 
 ```powershell
 .\mvnw.cmd verify
@@ -760,55 +645,16 @@ Run Maven verification and generate the JaCoCo report:
 
 On macOS or Linux, use `./mvnw` instead of `.\mvnw.cmd`.
 
-Generated reports:
+Report locations:
 
 | Report | Location |
 |---|---|
-| Surefire test reports | `target/surefire-reports/` |
-| JaCoCo HTML report | `target/site/jacoco/index.html` |
-| JaCoCo XML/CSV | `target/site/jacoco/` |
+| Surefire reports | `target/surefire-reports/` |
+| JaCoCo HTML | `target/site/jacoco/index.html` |
+| JaCoCo XML and CSV | `target/site/jacoco/` |
 
-Existing tests cover controller security slices, service logic, repository isolation, DTO validation, exception handling, JWT service behavior, current-user resolution, email, PDF rendering, and chart helpers.
+JaCoCo measures executed code coverage. It does not prove complete business correctness or security coverage.
 
-## Troubleshooting
+## Contributors
 
-| Symptom | Likely cause | Suggested check |
-|---|---|---|
-| Application fails at startup with missing JWT secret | `SECRET_KEY` is not set or blank. | Set a Base64 secret that decodes to at least 32 bytes. |
-| JWT secret error says it must be Base64 encoded | `SECRET_KEY` is not valid Base64. | Generate a new Base64 value and restart. |
-| MySQL connection failure | Incorrect `DB_URL`, credentials, or database not created. | Verify MySQL is running and the database exists. |
-| Hibernate schema validation failure | Database schema does not match JPA mappings. | Confirm Flyway migrations ran successfully. |
-| Flyway migration failure | Existing database is not empty or migration SQL failed. | Inspect `flyway_schema_history`; do not baseline until schema and seed data are verified. |
-| Default role not found during registration | `V2__seed_roles.sql` did not run or was skipped incorrectly. | Verify `roles` contains `USER`. |
-| Category creation returns icon not found | Requested `name` or `emoji` does not match a seeded category icon. | Query `category_icons` and use one of the seeded values. |
-| OTP or report email fails | SMTP credentials or provider policy is invalid. | Verify `MAIL_USERNAME`, `MAIL_PASSWORD`, and provider app-password settings. |
-| PDF export conflict | Target path is not writable or the PDF is open in another application. | Close the file and verify write permissions for `reports/`. |
-| Port already in use | Another process is using the configured server port. | Stop the other process or set `server.port` externally. |
-
-Avoid dropping or recreating a database as a routine fix. Back up data first and verify the root cause.
-
-## Development Conventions
-
-Observed repository conventions:
-
-- Main source code is under `src/main/java/org/example/pft`.
-- Tests mirror production modules under `src/test/java/org/example/pft`.
-- Controller tests use `@WebMvcTest`, MockMvc, Spring Security test support, and mocked services.
-- Service tests use JUnit 5 and Mockito.
-- Repository isolation tests use Spring Boot context and transactional database tests.
-- Use Maven Wrapper commands for repeatable local execution.
-- Use feature branches for focused changes. Recent branch names follow patterns such as `test/...`, `feat/...`, and `docs/...`.
-
-No formal pull request target, protected branch policy, or required commit format is documented in the repository. Recent commit history uses conventional-style prefixes such as `feat:`, `test:`, `chore:`, and `merge(...)`.
-
-## Known Limitations
-
-- The repository contains no frontend application.
-- No OpenAPI or Swagger configuration is present.
-- No Dockerfile or Docker Compose configuration is present.
-- No license file is present; no license is declared here.
-- Category icon URLs in the seed migration point to `cdn.example.com` placeholder assets.
-- OTP codes are stored in the `otp_code` column as generated values; the field name in the entity is `otpHash`, but no hashing is implemented.
-- `CreateBudgetRequest.month` is not annotated with `@NotNull`, although the service expects it to be present.
-- `UpdateBudgetRequest.amount` is not annotated with `@NotNull`, although the database column is non-null.
-- `V3__seed_category_icons.sql` begins with a `SELECT` statement before the inserts. This may be harmless in some environments but should be reviewed if Flyway execution behaves unexpectedly.
+- [@PPhTan165](https://github.com/PPhTan165)
