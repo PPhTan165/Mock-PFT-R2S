@@ -5,6 +5,7 @@ import org.example.pft.dto.auth.LoginRequest;
 import org.example.pft.dto.auth.LoginResponse;
 import org.example.pft.dto.twoFactor.ResendTwoFactorRequest;
 import org.example.pft.dto.twoFactor.VerifyTwoFactorRequest;
+import org.example.pft.exception.EmailNotFoundException;
 import org.example.pft.security.CustomUserDetailsService;
 import org.example.pft.security.JwtAuthenticationFilter;
 import org.example.pft.security.JwtService;
@@ -131,6 +132,27 @@ class LoginControllerSecurityTest {
 
         verify(authService, never())
                 .login(any(LoginRequest.class));
+    }
+
+    @Test
+    void login_withUnknownEmail_shouldReturnEmailValidationError() throws Exception {
+        when(authService.login(any(LoginRequest.class)))
+                .thenThrow(new EmailNotFoundException("Email does not exists"));
+
+        mockMvc.perform(post("/api/auth/login")
+                        .header("Authorization", "Bearer stale-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                {
+                    "email": "missing@gmail.com",
+                    "password": "abc12345"
+                }
+                """))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Validation failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("email"))
+                .andExpect(jsonPath("$.errors[0].message").value("Email does not exists"));
     }
 
     @Test
