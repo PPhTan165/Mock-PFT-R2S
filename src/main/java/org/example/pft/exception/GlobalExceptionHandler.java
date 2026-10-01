@@ -107,7 +107,7 @@ public class GlobalExceptionHandler {
         String message = ex.getMessage();
 
         return build(
-                HttpStatus.UNPROCESSABLE_CONTENT,
+                HttpStatus.UNPROCESSABLE_ENTITY,
                 false,
                 "Validation failed",
                 List.of(new ErrorData(field,message))
