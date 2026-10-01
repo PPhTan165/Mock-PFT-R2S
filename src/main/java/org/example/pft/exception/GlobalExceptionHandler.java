@@ -100,4 +100,17 @@ public class GlobalExceptionHandler {
                 List.of(new ErrorData(field,message))
         );
     }
+
+    @ExceptionHandler(EmailNotFoundException.class)
+    public  ResponseEntity<ApiError> handleEmailNotFound(EmailNotFoundException ex){
+        String field = "email";
+        String message = ex.getMessage();
+
+        return build(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                false,
+                "Validation failed",
+                List.of(new ErrorData(field,message))
+        );
+    }
 }

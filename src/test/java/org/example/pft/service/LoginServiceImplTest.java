@@ -6,6 +6,7 @@ import org.example.pft.dto.twoFactor.ResendTwoFactorRequest;
 import org.example.pft.dto.twoFactor.VerifyTwoFactorRequest;
 import org.example.pft.entity.User;
 import org.example.pft.exception.BusinessValidationException;
+import org.example.pft.exception.EmailNotFoundException;
 import org.example.pft.repository.RoleRepository;
 import org.example.pft.repository.UserRepository;
 import org.example.pft.security.JwtService;
@@ -132,10 +133,12 @@ class LoginServiceImplTest {
         when(userRepository.findByEmail("unknown@gmail.com"))
                 .thenReturn(Optional.empty());
 
-        assertThrows(
-                BusinessValidationException.class,
-                ()-> authService.login(request)
+        EmailNotFoundException exception = assertThrows(
+                EmailNotFoundException.class,
+                () -> authService.login(request)
         );
+
+        assertEquals("Email does not exists", exception.getMessage());
 
         verify(userRepository).findByEmail("unknown@gmail.com");
 
