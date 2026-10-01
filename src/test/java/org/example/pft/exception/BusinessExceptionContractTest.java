@@ -16,7 +16,7 @@ class BusinessExceptionContractTest {
 
         assertEquals("Failed to send report email", exception.getMessage());
         assertSame(cause, exception.getCause());
-        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, exception.getStatus());
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exception.getStatus());
     }
 
     @Test

@@ -171,7 +171,7 @@ class EmailServiceImplTest {
     }
 
     @Test
-    void sendOtpMail_whenMailSenderFails_shouldPropagateMailException() {
+    void sendOtpMail_whenMailSenderFails_shouldThrowEmailSendExceptionWithCause() {
         MimeMessage message = newMimeMessage();
         MailSendException mailException = new MailSendException("smtp failure");
         when(mailSender.createMimeMessage())
@@ -180,12 +180,13 @@ class EmailServiceImplTest {
                 .when(mailSender)
                 .send(message);
 
-        MailSendException exception = assertThrows(
-                MailSendException.class,
+        EmailSendException exception = assertThrows(
+                EmailSendException.class,
                 () -> emailService.sendOtpMail(TO, "123456")
         );
 
-        assertSame(mailException, exception);
+        assertEquals("Failed to send verification code", exception.getMessage());
+        assertSame(mailException, exception.getCause());
         verify(mailSender).createMimeMessage();
         verify(mailSender).send(message);
         verifyNoMoreInteractions(mailSender);

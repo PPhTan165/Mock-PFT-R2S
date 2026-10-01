@@ -95,8 +95,8 @@ public class EmailServiceImpl implements EmailService {
             mailSender.send(message);
 
 
-        }catch (MessagingException e){
-            throw new EmailSendException("Failed to send verification code");
+        }catch (MessagingException | MailException ex){
+            throw new EmailSendException("Failed to send verification code", ex);
         }
     }
 }
