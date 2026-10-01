@@ -1,6 +1,7 @@
+
 package org.example.pft.service.impl;
 
-import org.springframework.transaction.annotation.Transactional;
+import org.example.pft.exception.EmailNotFoundException;
 import lombok.AllArgsConstructor;
 import org.example.pft.dto.auth.*;
 import org.example.pft.dto.twoFactor.ResendTwoFactorRequest;
@@ -41,41 +42,17 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(noRollbackFor = BusinessValidationException.class)
     @Override
     public LoginResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BusinessValidationException("Invalid email or password"));
+        User user = findUserForLogin(request.getEmail());
 
         checkLoginLock(user);
-
-        if (!encoder.matches(request.getPassword(), user.getPassword())) {
-            throw handleFailedLogin(user);
-        }
-
+        validatePassword(request.getPassword(), user);
         resetLoginFailure(user);
 
         if (Boolean.TRUE.equals(user.getTwoFactorEnabled())) {
-            String challengeId = twoFactorService.createChallenge(user);
-
-            return new LoginResponse(
-                    true,
-                    "Two-factor verification required",
-                    challengeId,
-                    null
-            );
-        }else {
-            String accessToken = jwtService.generateToken(user);
-            LocalDateTime exp = jwtService.getExpirationDateTime(accessToken);
-
-            LoginData data = new LoginData(accessToken, exp);
-
-            return new LoginResponse(
-                    true,
-                    "Login successful",
-                    null,
-                    data
-            );
+            return requiredTwoFactor(user);
         }
 
-
+        return issueToken(user);
     }
 
     @Transactional
@@ -120,7 +97,6 @@ public class AuthServiceImpl implements AuthService {
         return new LoginResponse(
                 true,
                 "Login successful",
-                null,
                 data
         );
     }
@@ -171,6 +147,40 @@ public class AuthServiceImpl implements AuthService {
             user.setLockedUntil(null);
             userRepository.save(user);
         }
+    }
+
+    private User findUserForLogin(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new EmailNotFoundException("Email does not exists"));
+    }
+
+    private void validatePassword(String rawPassword, User user) {
+        if (!encoder.matches(rawPassword, user.getPassword())) {
+            throw handleFailedLogin(user);
+        }
+    }
+
+    private LoginResponse requiredTwoFactor(User user) {
+        String challengeId = twoFactorService.createChallenge(user);
+
+        return new LoginResponse(
+                true,
+                "Two-factor verification required",
+                challengeId,
+                null
+        );
+    }
+
+    private LoginResponse issueToken(User user) {
+        String accessToken = jwtService.generateToken(user);
+        LocalDateTime exp = jwtService.getExpirationDateTime(accessToken);
+
+        LoginData data = new LoginData(accessToken, exp);
+        return new LoginResponse(
+                true,
+                "Login successful",
+                data
+        );
     }
 
 }
