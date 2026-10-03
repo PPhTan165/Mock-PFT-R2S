@@ -229,7 +229,7 @@ Runtime configuration is defined in `src/main/resources/application.properties`.
 | `DB_URL` | JDBC URL for the MySQL database. Defaults to local `pft`. | No | `jdbc:mysql://localhost:3306/pft?useSSL=false&allowPublicKeyRetrieval=true` |
 | `DB_USERNAME` | MySQL username. Defaults to `root`. | No | `pft_user` |
 | `DB_PASSWORD` | MySQL password. Defaults to an empty value. | No | `change-me` |
-| `SECRET_KEY` | Base64 JWT signing key. Must decode to at least 32 bytes. | Yes | `base64-encoded-32-byte-secret` |
+| `SECRET_KEY` | Base64 JWT signing key. Must decode to at least 32 bytes. | Yes | `MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=` |
 | `MAIL_USERNAME` | SMTP username. Used by OTP and report email delivery. | Yes | `your-account@example.com` |
 | `MAIL_PASSWORD` | SMTP password or app password. | Yes | `app-specific-password` |
 
@@ -240,19 +240,13 @@ JWT defaults:
 | `app.jwt.expiration-seconds` | `3600` |
 | `app.jwt.issuer` | `pft` |
 
-Generate a development JWT secret in PowerShell:
+Temporary JWT secret for local development and testing:
 
-```powershell
-[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+```
+MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
 ```
 
-Generate a development JWT secret from CMD:
-
-```bat
-powershell -NoProfile -Command "[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))"
-```
-
-Copy the generated value into `SECRET_KEY`. Generate a different value for each developer machine or environment.
+This temporary key is only for local dev/test environments. Do not use it in production.
 
 Set local environment variables before starting the backend.
 
@@ -260,22 +254,22 @@ PowerShell:
 
 ```powershell
 $env:DB_URL = "jdbc:mysql://localhost:3306/pft?useSSL=false&allowPublicKeyRetrieval=true"
-$env:DB_USERNAME = "pft_user"
-$env:DB_PASSWORD = "<database-password>"
-$env:SECRET_KEY = "<base64-encoded-secret>"
-$env:MAIL_USERNAME = "<smtp-username>"
-$env:MAIL_PASSWORD = "<smtp-password>"
+$env:DB_USERNAME = "<DB_USERNAME>"
+$env:DB_PASSWORD = "<DB_PASSWORD>"
+$env:SECRET_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+$env:MAIL_USERNAME = "<MAIL_USERNAME>"
+$env:MAIL_PASSWORD = "<MAIL_PASSWORD>"
 ```
 
 Command Prompt (CMD):
 
 ```bat
 set DB_URL=jdbc:mysql://localhost:3306/pft?useSSL=false^&allowPublicKeyRetrieval=true
-set DB_USERNAME=pft_user
-set DB_PASSWORD=<database-password>
-set SECRET_KEY=<generated-base64-secret>
-set MAIL_USERNAME=<gmail-address>
-set MAIL_PASSWORD=<gmail-app-password>
+set DB_USERNAME=<DB_USERNAME>
+set DB_PASSWORD=<DB_PASSWORD>
+set SECRET_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+set MAIL_USERNAME=<MAIL_USERNAME>
+set MAIL_PASSWORD=<MAIL_PASSWORD>
 ```
 
 The CMD values above are available only in the current terminal window. Run the application from the same CMD window after setting them.
