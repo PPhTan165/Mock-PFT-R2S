@@ -48,7 +48,7 @@ jobs:
           docker tag pft-api:ci "$IMAGE"
 
       - name: Push Docker Image
-        if: github.event_name = 'push'
+        if: github.event_name == 'push'
         run: |
           IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/pft-api:dev
           docker push "$IMAGE"
