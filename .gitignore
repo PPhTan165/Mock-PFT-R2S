@@ -4,6 +4,9 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 reports/
+.env
+.env.*
+!.env.example
 
 ### STS ###
 .apt_generated
