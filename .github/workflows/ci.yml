@@ -29,3 +29,6 @@ jobs:
 
       - name: Build and Test
         run: ./mvnw clean verify
+
+      - name: Build Docker Image
+        run: docker build -t pft-api:ci .
