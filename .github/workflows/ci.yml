@@ -10,9 +10,9 @@ on:
     branches:
       - develop
 
-permission:
-  content: read
-  package: write
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   build-and-test:
