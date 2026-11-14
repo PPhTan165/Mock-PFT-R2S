@@ -32,3 +32,23 @@ jobs:
 
       - name: Build Docker Image
         run: docker build -t pft-api:ci .
+
+      - name: Login to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag Docker Image
+        if: github.event_name == 'push'
+        run: |
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/pft-api:dev
+          docker tag pft-api:ci "$IMAGE"
+
+      - name: Push Docker Image
+        if: github.event_name == 'push'
+        run: |
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}/pft-api:dev
+          docker push "$IMAGE"
