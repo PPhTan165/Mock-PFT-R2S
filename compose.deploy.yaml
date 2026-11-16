@@ -1,0 +1,34 @@
+
+services:
+  pft-api:
+    image: ghcr.io/pphtan165/pft-api:dev
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      DB_URL: jdbc:mysql://db:3306/pft?useSSL=false&allowPublicKeyRetrieval=true
+      DB_USERNAME: pft_user
+      DB_PASSWORD: ${PFT_DB_PASSWORD:?Set PFT_DB_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: pft
+      MYSQL_USER: pft_user
+      MYSQL_PASSWORD: ${PFT_DB_PASSWORD:?Set PFT_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+    volumes:
+      - pft_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysqladmin ping -h 127.0.0.1 -u \"$${MYSQL_USER}\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  pft_mysql_data:
