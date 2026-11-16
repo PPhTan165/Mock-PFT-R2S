@@ -1,4 +1,3 @@
-
 name: PFT CI
 
 on:
@@ -45,26 +44,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Tag Docker Image
-        if: github.event_name == 'push'
+      - name: Generate Docker image tags
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        id: image-tags
+        shell: bash
         run: |
-          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
-            TAG=dev
-          else
-            TAG=ghcr-test
-          fi
-          
-          IMAGE=ghcr.io/pphtan165/pft-api:dev
-          docker tag pft-api:ci "$IMAGE"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          test -n "$SHORT_SHA"
+          echo "short_sha=$SHORT_SHA">> "$GITHUB_OUTPUT"
 
-      - name: Push Docker Image
-        if: github.event_name == 'push'
+      - name: Tag and push Docker images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        shell: bash
         run: |
-          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
-            TAG=dev
-          else
-            TAG=ghcr-test
-          fi
+          IMAGE="ghcr.io/pphtan165/pft-api"
+          SHA_TAG="sha-${{ steps.image-tags.outputs.short_sha }}"
           
-          IMAGE=ghcr.io/pphtan165/pft-api:dev
-          docker push "$IMAGE"
+          docker tag pft-api:ci "$IMAGE:dev"
+          docker tag pft-api:ci "$IMAGE:$SHA_TAG"
+          
+          docker push "$IMAGE:dev"
+          docker push "$IMAGE:$SHA_TAG"
