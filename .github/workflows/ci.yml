@@ -1,0 +1,67 @@
+name: PFT CI
+
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Grant Maven Wrapper permission
+        run: chmod +x mvnw
+
+      - name: Build and Test
+        run: ./mvnw clean verify
+
+      - name: Build Docker Image
+        run: docker build -t pft-api:ci .
+
+      - name: Login to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Docker image tags
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        id: image-tags
+        shell: bash
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          test -n "$SHORT_SHA"
+          echo "short_sha=$SHORT_SHA">> "$GITHUB_OUTPUT"
+
+      - name: Tag and push Docker images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/pphtan165/pft-api"
+          SHA_TAG="sha-${{ steps.image-tags.outputs.short_sha }}"
+          
+          docker tag pft-api:ci "$IMAGE:dev"
+          docker tag pft-api:ci "$IMAGE:$SHA_TAG"
+          
+          docker push "$IMAGE:dev"
+          docker push "$IMAGE:$SHA_TAG"
