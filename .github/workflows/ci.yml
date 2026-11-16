@@ -45,7 +45,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate Docker image tags
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         id: image-tags
         shell: bash
         run: |
@@ -54,7 +54,7 @@ jobs:
           echo "short_sha=$SHORT_SHA">> "$GITHUB_OUTPUT"
 
       - name: Tag and push Docker images
-        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         shell: bash
         run: |
           IMAGE="ghcr.io/pphtan165/pft-api"
