@@ -27,8 +27,17 @@ jobs:
           java-version: '17'
           cache: maven
 
+      - name: Cache Maven Wrapper distribution
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/wrapper/dists
+          key: ${{ runner.os }}-maven-wrapper-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}
+
       - name: Grant Maven Wrapper permission
         run: chmod +x mvnw
+
+      - name: Verify Docker environment
+        run: docker info
 
       - name: Build and Test
         run: ./mvnw clean verify
