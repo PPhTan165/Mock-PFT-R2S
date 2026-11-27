@@ -30,6 +30,9 @@ jobs:
       - name: Grant Maven Wrapper permission
         run: chmod +x mvnw
 
+      - name: Verify Docker environment
+        run: docker info
+
       - name: Build and Test
         run: ./mvnw clean verify
 
